@@ -91,11 +91,15 @@ class TeacherInterface:
         # Populate the Treeview with sample data (you'll replace this with your actual data)
         self.populate_quizzes_table(quiz_tree)
 
+        # Inside the setup_quizzes_table method, bind the show_quiz_details function to the double-click event on a quiz row:
+        quiz_tree.bind("<Double-1>", lambda event: self.show_quiz_details(quiz_tree.item(quiz_tree.selection())['values'][1]))
+
     def populate_quizzes_table(self, quiz_tree):
-      # Fetch data from the database
+      # Fetch data from the database where num_questions is not null
       query = "SELECT subjects.name, quizzes.quiz_name, quizzes.num_questions, quizzes.status " \
                   "FROM subjects " \
-                  "JOIN quizzes ON subjects.id = quizzes.subject_id"
+                  "JOIN quizzes ON subjects.id = quizzes.subject_id " \
+                  "WHERE quizzes.num_questions IS NOT NULL"
       cursor.execute(query)
       data = cursor.fetchall()
 
@@ -104,9 +108,124 @@ class TeacherInterface:
             quiz_tree.insert("", tk.END, values=quiz)
 
 
+
     def setup_add_students_tab(self):
-        # Add code for "Add Students" tab here
-        pass
+      # Create two frames to divide the "Add Students" tab into two sections
+      left_frame = tk.Frame(self.add_students_tab)
+      left_frame.pack(side=tk.LEFT, fill=tk.Y)
+
+      right_frame = tk.Frame(self.add_students_tab)
+      right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+      # Left Section (Import Students Button)
+      import_students_button = tk.Button(left_frame, text="Import Students", command=self.import_students, font=("Helvetica", 14), bg="#2ecc71", fg="white")
+      import_students_button.pack(pady=20)
+
+      # Right Section (List of Students and Class Info)
+      self.setup_students_and_class_table(right_frame)
+
+
+    def setup_students_and_class_table(self, parent_frame):
+      # Create a Treeview widget for displaying students and class info
+      students_and_class_tree = ttk.Treeview(parent_frame, columns=("Class", "No. of Students"), show="headings")
+
+      # Define column headings
+      students_and_class_tree.heading("Class", text="Class")
+      students_and_class_tree.heading("No. of Students", text="No. of Students")
+
+      # Add a vertical scrollbar
+      scroll_y = ttk.Scrollbar(parent_frame, orient=tk.VERTICAL, command=students_and_class_tree.yview)
+      students_and_class_tree.configure(yscrollcommand=scroll_y.set)
+
+      # Pack the Treeview and scrollbar
+      students_and_class_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+      scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+      # Populate the Treeview with sample data (you'll replace this with your actual data)
+      self.populate_students_and_class_table(students_and_class_tree)
+
+    def populate_students_and_class_table(self, students_and_class_tree):
+      # Fetch data from the database for class-wise student count
+      query = "SELECT class, COUNT(*) as num_students FROM students GROUP BY class"
+      cursor.execute(query)
+      data = cursor.fetchall()
+
+      # Insert data into the Treeview
+      for class_info in data:
+            students_and_class_tree.insert("", tk.END, values=class_info)
+
+#     def populate_students_table(self, student_tree):
+#         # Fetch data from the database for students
+#         query = "SELECT id, username, password FROM students"
+#         cursor.execute(query)
+#         data = cursor.fetchall()
+
+#         # Insert data into the Treeview
+#         for student in data:
+#             student_tree.insert("", tk.END, values=student)
+
+    def import_students(self):
+      # Create a new window for selecting the class
+      import_window = tk.Toplevel(self.root)
+      import_window.title("Import Students")
+
+      # Label and dropdown for selecting class
+      class_label = tk.Label(import_window, text="Select Class:")
+      class_label.pack(pady=10)
+
+      class_var = tk.StringVar()
+      classes = ["Class A", "Class B", "Class C"]  # Replace with your actual class names
+      class_dropdown = ttk.Combobox(import_window, textvariable=class_var, values=classes)
+      class_dropdown.pack(pady=10)
+
+      # Add "OK" and "Cancel" buttons
+      ok_button = tk.Button(import_window, text="OK", command=lambda: self.import_students_from_excel(class_var.get(), import_window))
+      ok_button.pack(side=tk.LEFT, padx=10)
+      cancel_button = tk.Button(import_window, text="Cancel", command=import_window.destroy)
+      cancel_button.pack(side=tk.RIGHT, padx=10)
+
+      # Call the mainloop to display the window
+      import_window.mainloop()
+
+    def import_students_from_excel(self, selected_class, import_window):
+      if selected_class:
+            try:
+                  # Read Excel file into a Pandas DataFrame
+                  file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx;*.xls")])
+                  if file_path:
+                        df = pd.read_excel(file_path)
+
+                        # Validate column names
+                        required_columns = ["Id", "username", "password"]
+                        if set(required_columns).issubset(df.columns):
+                              # Insert students into the database with class information
+                              students = [(row["Id"], row["username"], row["password"], selected_class) for index, row in df.iterrows()]
+                              self.insert_students(students)
+
+                              # Update the Treeview with the new data
+                              student_tree = self.add_students_tab.winfo_children()[1].winfo_children()[0]  # Accessing the Treeview widget
+                              student_tree.delete(*student_tree.get_children())  # Clear existing data
+                              self.populate_students_and_class_table(student_tree)  # Populate Treeview with updated data
+
+                              messagebox.showinfo("Import Successful", "Students imported successfully.")
+                        else:
+                              messagebox.showerror("Error", "Invalid Excel file format. Please check the column names.")
+                  else:
+                        messagebox.showwarning("Warning", "No file selected.")
+            except Exception as e:
+                  messagebox.showerror("Error", f"An error occurred: {str(e)}")
+            finally:
+                  import_window.destroy()
+
+    def insert_students(self, students):
+      # Insert students into the students table
+      for student in students:
+            query = "INSERT INTO students (id, username, password, class) VALUES (%s, %s, %s, %s)"
+            cursor.execute(query, student)
+
+      # Commit the changes to the database
+      db.commit()
+            
 
     def setup_see_results_tab(self):
         # Add code for "See Results" tab here
@@ -157,15 +276,11 @@ class TeacherInterface:
         import_window.mainloop()
 
     def import_from_excel(self, subject, quiz, import_window):
-        # Use file dialog to select the Excel sheet
-        file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx;*.xls")])
-
-        if file_path:
+      file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx;*.xls")])
+      if file_path:
             try:
-                # Read the Excel sheet
                 df = pd.read_excel(file_path)
 
-                # Extract questions and options
                 questions = []
                 for index, row in df.iterrows():
                     question_text = row[0]
@@ -173,12 +288,16 @@ class TeacherInterface:
                     correct_option = row[5]
                     questions.append((question_text, options, correct_option))
 
-                # Insert questions into the database
                 self.insert_questions(subject, quiz, questions)
-
-                # Update quiz information in the quizzes table
                 num_questions = len(questions)
                 self.update_quiz_info(subject, quiz, num_questions)
+
+                # Update the Treeview with the new data
+                #quiz_tree = self.notebook.tab(0, "window").winfo_children()[1].winfo_children()[1]  # Accessing the Treeview widget
+                quiz_tree = self.add_questions_tab.winfo_children()[1].winfo_children()[0]
+
+                quiz_tree.delete(*quiz_tree.get_children())  # Clear existing data
+                self.populate_quizzes_table(quiz_tree)  # Populate Treeview with updated data
 
                 messagebox.showinfo("Import Successful", "Questions imported successfully.")
             except Exception as e:
@@ -249,3 +368,37 @@ class TeacherInterface:
         else:
             # Handle the case where the quiz doesn't exist
             return None
+    def show_quiz_details(self, selected_quiz):
+      # Fetch quiz details from the database
+      query = "SELECT question_text, option1, option2, option3, option4, correct_option " \
+        "FROM questions WHERE quiz_id = (SELECT id FROM quizzes WHERE quiz_name = %s LIMIT 1)"
+      cursor.execute(query, (selected_quiz,))
+      quiz_details = cursor.fetchall()
+
+
+      # Create a new window to display quiz details
+      details_window = tk.Toplevel(self.root)
+      details_window.title(f"Quiz Details - {selected_quiz}")
+
+      # Create a Treeview to display quiz details
+      quiz_details_tree = ttk.Treeview(details_window, columns=("Question", "Option 1", "Option 2", "Option 3", "Option 4", "Correct Option"), show="headings")
+      quiz_details_tree.heading("Question", text="Question")
+      quiz_details_tree.heading("Option 1", text="Option 1")
+      quiz_details_tree.heading("Option 2", text="Option 2")
+      quiz_details_tree.heading("Option 3", text="Option 3")
+      quiz_details_tree.heading("Option 4", text="Option 4")
+      quiz_details_tree.heading("Correct Option", text="Correct Option")
+
+      # Populate the Treeview with quiz details
+      for detail in quiz_details:
+            quiz_details_tree.insert("", tk.END, values=detail)
+
+      # Add a vertical scrollbar
+      scroll_y = ttk.Scrollbar(details_window, orient=tk.VERTICAL, command=quiz_details_tree.yview)
+      quiz_details_tree.configure(yscrollcommand=scroll_y.set)
+
+      # Pack the Treeview and scrollbar
+      quiz_details_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+      scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+
