@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox
 import mysql.connector
 from teachers import TeacherInterface
+from students import StudentInterface
 
 # Connect to MySQL database
 db = mysql.connector.connect(
@@ -79,7 +80,17 @@ class AuthWindow:
             if student:
                 # Successful login for student
                 messagebox.showinfo("Login Successful", "Welcome, Student!")
-                # Implement code to open student interface
+                
+                # Destroy the authentication window
+                self.root.destroy()
+
+                # Create the StudentInterface window
+                root_student_interface = tk.Tk()
+                student_interface = StudentInterface(root_student_interface, student[0])
+
+
+                # Run the StudentInterface window after the AuthWindow is destroyed
+                root_student_interface.mainloop()
             else:
                 # Failed login
                 messagebox.showerror("Login Failed", "Invalid username or password")
