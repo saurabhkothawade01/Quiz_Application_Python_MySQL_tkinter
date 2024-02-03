@@ -67,6 +67,10 @@ class TeacherInterface:
         import_button = tk.Button(left_frame, text="Import Questions", command=self.import_questions, font=("Helvetica", 14), bg="#2ecc71", fg="white")
         import_button.pack(pady=20)
 
+        assign_quiz_button = tk.Button(left_frame, text="Assign Quiz", command=self.assign_quiz, font=("Helvetica", 14), bg="#3498db", fg="white")
+        assign_quiz_button.pack(pady=20)
+
+
         # Right Section (List of Quizzes)
         self.setup_quizzes_table(right_frame)
 
@@ -345,8 +349,6 @@ class TeacherInterface:
         # Commit the changes to the database
         db.commit()
 
-    
-
     def get_subject_id(self, subject_name):
         # Fetch subject_id based on the provided subject name
         query = "SELECT id FROM subjects WHERE name = %s"
@@ -358,16 +360,17 @@ class TeacherInterface:
             # Handle the case where the subject doesn't exist
             return None
 
-    def get_quiz_id(self, quiz_name, subject_id):
-        # Fetch quiz_id based on the provided quiz name and subject_id
-        query = "SELECT id FROM quizzes WHERE quiz_name = %s AND subject_id = %s"
-        cursor.execute(query, (quiz_name, subject_id))
-        quiz_id = cursor.fetchone()
-        if quiz_id:
+    def get_quiz_id(self, selected_quiz):
+      # Fetch quiz_id based on the provided quiz name
+      query = "SELECT id FROM quizzes WHERE quiz_name = %s"
+      cursor.execute(query, (selected_quiz,))
+      quiz_id = cursor.fetchone()
+      if quiz_id:
             return quiz_id[0]
-        else:
+      else:
             # Handle the case where the quiz doesn't exist
             return None
+      
     def show_quiz_details(self, selected_quiz):
       # Fetch quiz details from the database
       query = "SELECT question_text, option1, option2, option3, option4, correct_option " \
@@ -400,5 +403,88 @@ class TeacherInterface:
       # Pack the Treeview and scrollbar
       quiz_details_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
       scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+    
+    def assign_quiz(self):
+      # Get the selected quiz from the Treeview
+      selected_quiz = self.get_selected_quiz()
+
+      if selected_quiz:
+            # Create a new window for selecting the class to assign the quiz
+            assign_window = tk.Toplevel(self.root)
+            assign_window.title("Assign Quiz")
+
+            # Label and dropdown for selecting class
+            class_label = tk.Label(assign_window, text="Select Class:")
+            class_label.pack(pady=10)
+
+            class_var = tk.StringVar()
+            classes = ["Class A", "Class B", "Class C"]  # Replace with your actual class names
+            class_dropdown = ttk.Combobox(assign_window, textvariable=class_var, values=classes)
+            class_dropdown.pack(pady=10)
+
+            # Add "OK" and "Cancel" buttons
+            ok_button = tk.Button(assign_window, text="OK", command=lambda: self.assign_quiz_to_class(selected_quiz, class_var.get(), assign_window))
+            ok_button.pack(side=tk.LEFT, padx=10)
+            cancel_button = tk.Button(assign_window, text="Cancel", command=assign_window.destroy)
+            cancel_button.pack(side=tk.RIGHT, padx=10)
+
+            # Call the mainloop to display the window
+            assign_window.mainloop()
+      else:
+            messagebox.showwarning("Warning", "Please select a quiz to assign.")
+
+    def get_selected_quiz(self):
+      # Get the selected item from the quizzes Treeview
+      quiz_tree = self.add_questions_tab.winfo_children()[1].winfo_children()[0]
+      selected_item = quiz_tree.selection()
+
+      if selected_item:
+            return quiz_tree.item(selected_item)['values'][1]  # Quiz name is at index 1
+      else:
+            return None
+
+    def assign_quiz_to_class(self, selected_quiz, selected_class, assign_window):
+      if selected_class:
+            try:
+                  # Get the quiz_id based on the selected quiz name
+                  quiz_id = self.get_quiz_id(selected_quiz)
+
+                  # Get the student_ids for the selected class
+                  student_ids = self.get_student_ids_by_class(selected_class)
+
+                  # Assign the quiz to each student in the selected class
+                  for student_id in student_ids:
+                        self.insert_assigned_quiz(student_id, quiz_id)
+
+                        messagebox.showinfo("Assignment Successful", f"The quiz '{selected_quiz}' has been assigned to the students in '{selected_class}'.")
+            except Exception as e:
+                  messagebox.showerror("Error", f"An error occurred: {str(e)}")
+            finally:
+                  # Close the assignment window
+                  assign_window.destroy()
+      else:
+            messagebox.showwarning("Warning", "Please select a class to assign the quiz.")
+
+    def get_student_ids_by_class(self, selected_class):
+      # Check if there's an open result set and consume it
+      if cursor.with_rows:
+            cursor.fetchall()
+
+      # Fetch student_ids for the selected class from the database
+      query = "SELECT id FROM students WHERE class = %s"
+      cursor.execute(query, (selected_class,))
+      student_ids = [row[0] for row in cursor.fetchall()]
+
+      return student_ids
+
+    def insert_assigned_quiz(self, student_id, quiz_id):
+      print(student_id)
+      print(quiz_id)
+      # Insert the assigned quiz into the assigned_quizzes table
+      query = "INSERT INTO assigned_quizzes (student_id, quiz_id) VALUES (%s, %s)"
+      cursor.execute(query, (student_id, quiz_id))
+
+      # Commit the changes to the database
+      db.commit()
 
 

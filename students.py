@@ -1,7 +1,8 @@
 import tkinter as tk
+from tkinter import messagebox, IntVar
+import mysql.connector
 from tkinter import ttk
 from datetime import datetime
-import mysql.connector
 
 # Connect to MySQL database
 db = mysql.connector.connect(
@@ -27,43 +28,86 @@ class QuizWindow:
         self.frame = tk.Frame(self.root)
         self.frame.pack(expand=True)
 
+        # Set the current question index
+        self.current_question_index = 0
+
         # Load quiz questions and options
         self.load_quiz_questions()
 
+        # Add navigation buttons
+        self.add_navigation_buttons()
+
     def load_quiz_questions(self):
-      # Fetch questions and options for the selected quiz
-      query = "SELECT * FROM questions WHERE quiz_id = %s"
-      cursor.execute(query, (self.quiz_id,))
-      questions_data = cursor.fetchall()
+        # Fetch questions and options for the selected quiz
+        query = "SELECT * FROM questions WHERE quiz_id = %s"
+        cursor.execute(query, (self.quiz_id,))
+        self.questions_data = cursor.fetchall()
 
-      # Print questions_data for debugging purposes
-      print("questions_data:", questions_data)
-      print(self.quiz_id)
+        # Create labels and radio buttons for the current question
+        self.create_question_widgets()
 
-      # Create labels and radio buttons for each question
-      for question in questions_data:
-            question_label = tk.Label(self.frame, text=question[2], font=("Helvetica", 12))
-            question_label.pack(pady=5)
+    def create_question_widgets(self):
+        # Destroy existing question widgets
+        for widget in self.frame.winfo_children():
+            widget.destroy()
 
-            # Options start from index 3 in the retrieved data
-            options = question[3:8]  # Adjust the index based on the actual structure of your questions table
+        # Get the current question
+        current_question = self.questions_data[self.current_question_index]
 
-            # Print options for debugging purposes
-            print("options:", options)
+        # Create labels and radio buttons for the current question
+        question_label = tk.Label(self.frame, text=current_question[2], font=("Helvetica", 12))
+        question_label.pack(pady=5)
 
-            for i, option in enumerate(options):
-                  option_radio = tk.Radiobutton(self.frame, text=option, value=i + 1)
-                  option_radio.pack()
+        # Options start from index 3 in the retrieved data
+        options = current_question[3:7]
 
-      # Add a "Submit" button to submit quiz answers
-      submit_button = tk.Button(self.frame, text="Submit", command=self.submit_quiz)
-      submit_button.pack(pady=10)
+        # Create IntVar variables to track selected option for each question
+        self.selected_options_vars = [IntVar() for _ in range(len(options))]
+
+        for i, option in enumerate(options):
+            option_radio = tk.Radiobutton(self.frame, text=option, value=i + 1, variable=self.selected_options_vars[i])
+            option_radio.pack()
+
+    def add_navigation_buttons(self):
+        # Create navigation buttons based on the current question index
+        if self.current_question_index < len(self.questions_data) - 1:
+            next_button = tk.Button(self.frame, text="Next", command=self.next_question)
+            next_button.pack(side=tk.LEFT, padx=10)
+        else:
+            submit_button = tk.Button(self.frame, text="Submit", command=self.submit_quiz)
+            submit_button.pack(side=tk.LEFT, padx=10)
+
+        if self.current_question_index > 0:
+            previous_button = tk.Button(self.frame, text="Previous", command=self.previous_question)
+            previous_button.pack(side=tk.LEFT, padx=10)
+
+        clear_button = tk.Button(self.frame, text="Clear", command=self.clear_answer)
+        clear_button.pack(side=tk.LEFT, padx=10)
+
+    def next_question(self):
+        # Move to the next question if available
+        if self.current_question_index < len(self.questions_data) - 1:
+            self.current_question_index += 1
+            self.create_question_widgets()
+            self.add_navigation_buttons()
+
+    def previous_question(self):
+        # Move to the previous question if available
+        if self.current_question_index > 0:
+            self.current_question_index -= 1
+            self.create_question_widgets()
+            self.add_navigation_buttons()
+
+    def clear_answer(self):
+        # Clear the selected option for the current question
+        for var in self.selected_options_vars:
+            var.set(0)
 
     def submit_quiz(self):
         # Add your logic here to handle the submitted quiz answers
         # You can compare selected options with the correct answers from the database
         # Update the student's score and perform any other necessary actions
-        
+
         messagebox.showinfo("Quiz Submitted", "Quiz submitted successfully!")
         self.root.destroy()
 
@@ -126,4 +170,4 @@ class StudentInterface:
         # Open a new window for the selected quiz
         root_quiz_window = tk.Tk()
         quiz_window = QuizWindow(root_quiz_window, 10, self.student_id)
-        root_quiz_window.mainloop()  
+        root_quiz_window.mainloop()
