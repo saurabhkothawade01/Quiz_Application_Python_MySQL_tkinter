@@ -3,6 +3,8 @@ from tkinter import messagebox
 import mysql.connector
 from teachers import TeacherInterface
 from students import StudentInterface
+from hod_registration import HODRegistrationWindow
+from hod_interface import HODInterface
 
 # Connect to MySQL database
 db = mysql.connector.connect(
@@ -51,6 +53,26 @@ class AuthWindow:
         self.login_button = tk.Button(self.frame, text="Login", command=self.login, font=("Helvetica", 14, "bold"), bg="#2ecc71", fg="white")
         self.login_button.pack(pady=20)
 
+        # Register Button
+        self.register_button = tk.Button(self.frame, text="Register HOD", command=self.register_hod, font=("Helvetica", 14, "bold"), bg="#e74c3c", fg="white")
+        self.register_button.pack(pady=10)
+
+    
+    def register_hod(self):
+        # Hide the login window
+        self.root.destroy()
+
+        # Open the HOD registration window and pass the AuthWindow instance
+        root_hod_registration = tk.Tk()
+        hod_registration_window = HODRegistrationWindow(root_hod_registration, self)
+        root_hod_registration.mainloop()
+
+    def show_login_window(self):
+        # Create and run the authentication window
+        root = tk.Tk()
+        auth_window = AuthWindow(root)
+        root.mainloop()
+
     def login(self):
         username = self.username_entry.get()
         password = self.password_entry.get()
@@ -91,9 +113,29 @@ class AuthWindow:
 
                 # Run the StudentInterface window after the AuthWindow is destroyed
                 root_student_interface.mainloop()
+
             else:
-                # Failed login
-                messagebox.showerror("Login Failed", "Invalid username or password")
+                query = "SELECT * FROM hods WHERE username=%s AND password=%s"
+                cursor.execute(query, (username, password))
+                hod = cursor.fetchone()
+
+                if hod:
+                    messagebox.showinfo("Login Successful", "Welcome, HOD!")
+
+                    # Destroy the authentication window
+                    self.root.destroy()
+
+                    # Create the StudentInterface window
+                    root_hod_interface = tk.Tk()
+                    hod_interface = HODInterface(root_hod_interface, hod[0])
+
+
+                    # Run the StudentInterface window after the AuthWindow is destroyed
+                    root_hod_interface.mainloop()
+
+                else:
+                    # Failed login
+                    messagebox.showerror("Login Failed", "Invalid username or password")
 
 # Create and run the authentication window
 root = tk.Tk()
