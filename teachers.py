@@ -56,23 +56,64 @@ class TeacherInterface:
       
     
     def setup_add_questions_tab(self):
-        # Create two frames to divide the "Add Questions" tab into two sections
-        left_frame = tk.Frame(self.add_questions_tab)
-        left_frame.pack(side=tk.LEFT, fill=tk.Y)
+      # Create two frames to divide the "Add Questions" tab into two sections
+      left_frame = tk.Frame(self.add_questions_tab)
+      left_frame.pack(side=tk.LEFT, fill=tk.Y)
 
-        right_frame = tk.Frame(self.add_questions_tab)
-        right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+      right_frame = tk.Frame(self.add_questions_tab)
+      right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-        # Left Section (Import Questions Button)
-        import_button = tk.Button(left_frame, text="Import Questions", command=self.import_questions, font=("Helvetica", 14), bg="#2ecc71", fg="white")
-        import_button.pack(pady=20)
+      # Left Section (Import Questions Button)
+      import_button = tk.Button(left_frame, text="Import Questions", command=self.import_questions, font=("Helvetica", 14), bg="#2ecc71", fg="white")
+      import_button.pack(pady=20)
 
-        assign_quiz_button = tk.Button(left_frame, text="Assign Quiz", command=self.assign_quiz, font=("Helvetica", 14), bg="#3498db", fg="white")
-        assign_quiz_button.pack(pady=20)
+      # Assign Quiz Button
+      assign_quiz_button = tk.Button(left_frame, text="Assign Quiz", command=self.open_assign_quiz_window, font=("Helvetica", 14), bg="#3498db", fg="white")
+      assign_quiz_button.pack(pady=20)
+
+      # Right Section (List of Quizzes)
+      self.setup_quizzes_table(right_frame)
+
+    def open_assign_quiz_window(self):
+      # Create a new window for assigning the quiz
+      assign_window = tk.Toplevel(self.root)
+      assign_window.title("Assign Quiz")
+
+      # Label and dropdown for selecting class
+      class_label = tk.Label(assign_window, text="Select Class:")
+      class_label.pack(pady=10)
+
+      class_var = tk.StringVar()
+      class_names = self.fetch_class_names()
+      class_dropdown = ttk.Combobox(assign_window, textvariable=class_var, values=class_names)
+      class_dropdown.pack(pady=10)
+
+      # Entry widgets for entering date and time
+      date_label = tk.Label(assign_window, text="Enter Date (YYYY-MM-DD):")
+      date_label.pack(pady=10)
+
+      date_entry = tk.Entry(assign_window)
+      date_entry.pack(pady=10)
+
+      time_label = tk.Label(assign_window, text="Enter Time (HH:MM:SS):")
+      time_label.pack(pady=10)
+
+      time_entry = tk.Entry(assign_window)
+      time_entry.pack(pady=10)
+
+      # Add "OK" and "Cancel" buttons
+      ok_button = tk.Button(assign_window, text="OK", command=lambda: self.assign_quiz_to_class(class_var.get(), date_entry.get(), time_entry.get(), assign_window))
+      ok_button.pack(side=tk.LEFT, padx=10)
+      cancel_button = tk.Button(assign_window, text="Cancel", command=assign_window.destroy)
+      cancel_button.pack(side=tk.RIGHT, padx=10)
 
 
-        # Right Section (List of Quizzes)
-        self.setup_quizzes_table(right_frame)
+    def fetch_class_names(self):
+      # Fetch class names from the database
+      query = "SELECT DISTINCT class FROM students"
+      cursor.execute(query)
+      class_names = [row[0] for row in cursor.fetchall()]
+      return class_names
 
     def setup_quizzes_table(self, parent_frame):
         # Create a Treeview widget for displaying quizzes
@@ -173,17 +214,15 @@ class TeacherInterface:
       import_window = tk.Toplevel(self.root)
       import_window.title("Import Students")
 
-      # Label and dropdown for selecting class
-      class_label = tk.Label(import_window, text="Select Class:")
+      # Label and entry widget for entering class name
+      class_label = tk.Label(import_window, text="Enter Class Name:")
       class_label.pack(pady=10)
 
-      class_var = tk.StringVar()
-      classes = ["Class A", "Class B", "Class C"]  # Replace with your actual class names
-      class_dropdown = ttk.Combobox(import_window, textvariable=class_var, values=classes)
-      class_dropdown.pack(pady=10)
+      class_entry = tk.Entry(import_window)
+      class_entry.pack(pady=10)   
 
       # Add "OK" and "Cancel" buttons
-      ok_button = tk.Button(import_window, text="OK", command=lambda: self.import_students_from_excel(class_var.get(), import_window))
+      ok_button = tk.Button(import_window, text="OK", command=lambda: self.import_students_from_excel(class_entry.get(), import_window))
       ok_button.pack(side=tk.LEFT, padx=10)
       cancel_button = tk.Button(import_window, text="Cancel", command=import_window.destroy)
       cancel_button.pack(side=tk.RIGHT, padx=10)
@@ -193,33 +232,35 @@ class TeacherInterface:
 
     def import_students_from_excel(self, selected_class, import_window):
       if selected_class:
-            try:
-                  # Read Excel file into a Pandas DataFrame
-                  file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx;*.xls")])
-                  if file_path:
-                        df = pd.read_excel(file_path)
+          try:
+              # Read Excel file into a Pandas DataFrame
+              file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx;*.xls")])
+              if file_path:
+                  df = pd.read_excel(file_path)
 
-                        # Validate column names
-                        required_columns = ["Id", "username", "password"]
-                        if set(required_columns).issubset(df.columns):
-                              # Insert students into the database with class information
-                              students = [(row["Id"], row["username"], row["password"], selected_class) for index, row in df.iterrows()]
-                              self.insert_students(students)
+                  # Validate column names
+                  required_columns = ["Id", "username", "password"]
+                  if set(required_columns).issubset(df.columns):
+                      # Insert students into the database with class information
+                      students = [(row["Id"], row["username"], row["password"], selected_class) for index, row in df.iterrows()]
+                      self.insert_students(students)
 
-                              # Update the Treeview with the new data
-                              student_tree = self.add_students_tab.winfo_children()[1].winfo_children()[0]  # Accessing the Treeview widget
-                              student_tree.delete(*student_tree.get_children())  # Clear existing data
-                              self.populate_students_and_class_table(student_tree)  # Populate Treeview with updated data
+                      # Update the Treeview with the new data
+                      student_tree = self.add_students_tab.winfo_children()[1].winfo_children()[0]  # Accessing the Treeview widget
+                      student_tree.delete(*student_tree.get_children())  # Clear existing data
+                      self.populate_students_and_class_table(student_tree)  # Populate Treeview with updated data
 
-                              messagebox.showinfo("Import Successful", "Students imported successfully.")
-                        else:
-                              messagebox.showerror("Error", "Invalid Excel file format. Please check the column names.")
+                      messagebox.showinfo("Import Successful", "Students imported successfully.")
                   else:
-                        messagebox.showwarning("Warning", "No file selected.")
-            except Exception as e:
-                  messagebox.showerror("Error", f"An error occurred: {str(e)}")
-            finally:
-                  import_window.destroy()
+                      messagebox.showerror("Error", "Invalid Excel file format. Please check the column names.")
+              else:
+                  messagebox.showwarning("Warning", "No file selected.")
+          except Exception as e:
+              messagebox.showerror("Error", f"An error occurred: {str(e)}")
+          finally:
+              import_window.destroy()
+      else:
+          messagebox.showwarning("Warning", "Please enter a class name.")
 
     def insert_students(self, students):
       # Insert students into the students table
@@ -240,74 +281,67 @@ class TeacherInterface:
         pass
     
     def import_questions(self):
-        # Create a new window for selecting subjects and quizzes
-        import_window = tk.Toplevel(self.root)
-        import_window.title("Import Questions")
+      # Create a new window for selecting subjects and quizzes
+      import_window = tk.Toplevel(self.root)
+      import_window.title("Import Questions")
 
-        # Add labels and dropdowns for subjects and quizzes
-        subject_label = tk.Label(import_window, text="Select Subject:")
-        subject_label.pack(pady=10)
-        subject_var = tk.StringVar()
-        subjects = self.get_subjects()
-        subject_dropdown = ttk.Combobox(import_window, textvariable=subject_var, values=subjects)
-        subject_dropdown.pack(pady=10)
+      # Label and dropdown for selecting subject
+      subject_label = tk.Label(import_window, text="Select Subject:")
+      subject_label.pack(pady=10)
 
-        quiz_label = tk.Label(import_window, text="Select Quiz:")
-        quiz_label.pack(pady=10)
-        quiz_var = tk.StringVar()
-        quizzes = []  # Empty list initially
-        quiz_dropdown = ttk.Combobox(import_window, textvariable=quiz_var, values=quizzes)
-        quiz_dropdown.pack(pady=10)
+      subject_var = tk.StringVar()
+      subjects = self.get_assigned_subjects()
+      subject_dropdown = ttk.Combobox(import_window, textvariable=subject_var, values=subjects)
+      subject_dropdown.pack(pady=10)
 
-        # Event handler for subject dropdown selection change
-        def update_quizzes_dropdown(event):
-            selected_subject = subject_var.get()
-            quizzes = self.get_quizzes(selected_subject)
-            quiz_dropdown['values'] = quizzes  # Update quiz dropdown values
+      # Entry widget for entering quiz name
+      quiz_name_label = tk.Label(import_window, text="Enter Quiz Name:")
+      quiz_name_label.pack(pady=10)
 
-        # Bind the event handler to the <<ComboboxSelected>> event
-        subject_dropdown.bind("<<ComboboxSelected>>", update_quizzes_dropdown)
+      quiz_name_entry = tk.Entry(import_window)
+      quiz_name_entry.pack(pady=10)
 
-        # Add "OK" and "Cancel" buttons
-        ok_button = tk.Button(import_window, text="OK", command=lambda: self.import_from_excel(subject_var.get(), quiz_var.get(), import_window))
-        ok_button.pack(side=tk.LEFT, padx=10)
-        cancel_button = tk.Button(import_window, text="Cancel", command=import_window.destroy)
-        cancel_button.pack(side=tk.RIGHT, padx=10)
+      # Add "OK" and "Cancel" buttons
+      ok_button = tk.Button(import_window, text="OK", command=lambda: self.import_questions_from_excel(subject_var.get(), quiz_name_entry.get(), import_window))
+      ok_button.pack(side=tk.LEFT, padx=10)
+      cancel_button = tk.Button(import_window, text="Cancel", command=import_window.destroy)
+      cancel_button.pack(side=tk.RIGHT, padx=10)
 
-        
+      # Call the mainloop to display the window
+      import_window.mainloop()
 
-        # Call the mainloop to display the window
-        import_window.mainloop()
+    def import_questions_from_excel(self, subject, quiz_name, import_window):
+      if subject and quiz_name:
+          try:
+              # Read Excel file into a Pandas DataFrame
+              file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx;*.xls")])
+              if file_path:
+                  df = pd.read_excel(file_path)
 
-    def import_from_excel(self, subject, quiz, import_window):
-      file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx;*.xls")])
-      if file_path:
-            try:
-                df = pd.read_excel(file_path)
+                  questions = []
+                  for index, row in df.iterrows():
+                      question_text = row[0]
+                      options = row[1:5].tolist()  # Assuming the options are in columns 2 to 6
+                      correct_option = row[5]
+                      questions.append((question_text, options, correct_option))
 
-                questions = []
-                for index, row in df.iterrows():
-                    question_text = row[0]
-                    options = row[1:5].tolist()  # Assuming the options are in columns 2 to 6
-                    correct_option = row[5]
-                    questions.append((question_text, options, correct_option))
+                  self.insert_questions(subject, quiz_name, questions)
+                  num_questions = len(questions)
+                  self.update_quiz_info(subject, quiz_name, num_questions)
 
-                self.insert_questions(subject, quiz, questions)
-                num_questions = len(questions)
-                self.update_quiz_info(subject, quiz, num_questions)
 
-                # Update the Treeview with the new data
-                #quiz_tree = self.notebook.tab(0, "window").winfo_children()[1].winfo_children()[1]  # Accessing the Treeview widget
-                quiz_tree = self.add_questions_tab.winfo_children()[1].winfo_children()[0]
+                  # Update the Treeview with the new data
+                  quiz_tree = self.add_questions_tab.winfo_children()[1].winfo_children()[0]  # Accessing the Treeview widget
+                  quiz_tree.delete(*quiz_tree.get_children())  # Clear existing data
+                  self.populate_quizzes_table(quiz_tree)  # Populate Treeview with updated data
 
-                quiz_tree.delete(*quiz_tree.get_children())  # Clear existing data
-                self.populate_quizzes_table(quiz_tree)  # Populate Treeview with updated data
-
-                messagebox.showinfo("Import Successful", "Questions imported successfully.")
-            except Exception as e:
-                messagebox.showerror("Error", f"An error occurred: {str(e)}")
-            finally:
-                import_window.destroy()
+                  messagebox.showinfo("Import Successful", "Questions imported successfully.")
+          except Exception as e:
+              messagebox.showerror("Error", f"An error occurred: {str(e)}")
+          finally:
+              import_window.destroy()
+      else:
+          messagebox.showwarning("Warning", "Please select a subject and enter quiz name.")
 
     def update_quiz_info(self, subject, quiz, num_questions):
         # Get subject_id and quiz_id based on the provided subject and quiz names
@@ -339,6 +373,15 @@ class TeacherInterface:
         # Get subject_id and quiz_id based on the provided subject and quiz names
         subject_id = self.get_subject_id(subject)
         quiz_id = self.get_quiz_id(quiz, subject_id)
+        teacher_id = self.teacher_id
+
+        # Insert quiz data into the quizzes table
+        query = "INSERT INTO quizzes (teacher_id, subject_id, quiz_name) VALUES (%s, %s, %s)"
+        cursor.execute(query, (teacher_id, subject_id, quiz ))
+        db.commit()  # Commit the changes to the database
+
+        # Get the quiz ID
+        quiz_id = cursor.lastrowid
 
         # Insert questions into the questions table
         for question_text, options, correct_option in questions:
@@ -348,7 +391,7 @@ class TeacherInterface:
         
         # Commit the changes to the database
         db.commit()
-
+  
     def get_subject_id(self, subject_name):
         # Fetch subject_id based on the provided subject name
         query = "SELECT id FROM subjects WHERE name = %s"
@@ -360,7 +403,7 @@ class TeacherInterface:
             # Handle the case where the subject doesn't exist
             return None
 
-    def get_quiz_id(self, selected_quiz):
+    def get_quiz_id(self, selected_quiz, subject_id):
       # Fetch quiz_id based on the provided quiz name
       query = "SELECT id FROM quizzes WHERE quiz_name = %s"
       cursor.execute(query, (selected_quiz,))
@@ -443,27 +486,37 @@ class TeacherInterface:
       else:
             return None
 
-    def assign_quiz_to_class(self, selected_quiz, selected_class, assign_window):
-      if selected_class:
-            try:
-                  # Get the quiz_id based on the selected quiz name
-                  quiz_id = self.get_quiz_id(selected_quiz)
+    def assign_quiz_to_class(self, selected_class, date, time, assign_window):
+      if selected_class and date and time:
+          try:
+              # Get the selected quiz from the Treeview
+              selected_quiz = self.get_selected_quiz()
+
+              if selected_quiz:
+                  # Get the subject_id based on the selected quiz
+                  subject_id = self.get_subject_id(selected_quiz)
+
+                  # Get the quiz_id based on the selected quiz name and subject_id
+                  quiz_id = self.get_quiz_id(selected_quiz, subject_id)
 
                   # Get the student_ids for the selected class
                   student_ids = self.get_student_ids_by_class(selected_class)
 
                   # Assign the quiz to each student in the selected class
                   for student_id in student_ids:
-                        self.insert_assigned_quiz(student_id, quiz_id)
+                      self.insert_assigned_quiz(student_id, quiz_id, date, time)
 
-                        messagebox.showinfo("Assignment Successful", f"The quiz '{selected_quiz}' has been assigned to the students in '{selected_class}'.")
-            except Exception as e:
-                  messagebox.showerror("Error", f"An error occurred: {str(e)}")
-            finally:
-                  # Close the assignment window
-                  assign_window.destroy()
+                  messagebox.showinfo("Assignment Successful", f"The quiz '{selected_quiz}' has been assigned to the students in '{selected_class}'.")
+              else:
+                  messagebox.showwarning("Warning", "Please select a quiz to assign.")
+          except Exception as e:
+              messagebox.showerror("Error", f"An error occurred: {str(e)}")
+          finally:
+              # Close the assignment window
+              assign_window.destroy()
       else:
-            messagebox.showwarning("Warning", "Please select a class to assign the quiz.")
+          messagebox.showwarning("Warning", "Please select a class, enter date and time to assign the quiz.")
+
 
     def get_student_ids_by_class(self, selected_class):
       # Check if there's an open result set and consume it
@@ -477,14 +530,22 @@ class TeacherInterface:
 
       return student_ids
 
-    def insert_assigned_quiz(self, student_id, quiz_id):
-      print(student_id)
-      print(quiz_id)
+    def insert_assigned_quiz(self, student_id, quiz_id, date, time):
       # Insert the assigned quiz into the assigned_quizzes table
       query = "INSERT INTO assigned_quizzes (student_id, quiz_id) VALUES (%s, %s)"
       cursor.execute(query, (student_id, quiz_id))
 
+      query = "UPDATE quizzes SET status = %s, date = %s, time = %s WHERE id = %s"
+      cursor.execute(query, ("Given", date, time, quiz_id))
+
       # Commit the changes to the database
       db.commit()
+
+    def get_assigned_subjects(self):
+      # Fetch subjects assigned to the teacher from the database
+      query = "SELECT subjects.name FROM subjects INNER JOIN hod_subjects ON subjects.id = hod_subjects.subject_id INNER JOIN teachers ON hod_subjects.teacher_id = teachers.id WHERE teachers.id = %s"
+      cursor.execute(query, (self.teacher_id,))
+      subjects = [row[0] for row in cursor.fetchall()]
+      return subjects
 
 

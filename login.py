@@ -141,3 +141,4 @@ class AuthWindow:
 root = tk.Tk()
 auth_window = AuthWindow(root)
 root.mainloop()
+    
