@@ -13,8 +13,9 @@ db = mysql.connector.connect(
 cursor = db.cursor()
 
 class TeacherInterface:
-    def __init__(self, root, teacher_id):
+    def __init__(self, root, teacher_id, auth_window):
         self.root = root  # Store the root window in an instance variable
+        self.auth_window = auth_window
         self.root.title("MCQ Quiz App - Teacher Interface")
         
         # Maximize the window to full screen
@@ -29,6 +30,14 @@ class TeacherInterface:
         style = ttk.Style()
         style.configure("TNotebook", background="#ecf0f1")
         style.configure("TNotebook.Tab", background="#3498db", foreground="black", padding=[10, 5])
+
+        # Create a frame to contain the tabs and the logout button
+        self.header_frame = tk.Frame(self.root)
+        self.header_frame.pack(fill=tk.X)
+
+        # Add tabs
+        self.tabs = ttk.Notebook(self.header_frame)
+        self.tabs.pack(side=tk.LEFT)
 
         # Create a notebook (tabbed interface)
         self.notebook = ttk.Notebook(root)
@@ -53,8 +62,18 @@ class TeacherInterface:
         self.manage_profile_tab = tk.Frame(self.notebook)
         self.notebook.add(self.manage_profile_tab, text="Manage Profile")
         self.setup_manage_profile_tab()
-      
+
+        # Add a logout button
+        self.logout_button = tk.Button(self.header_frame, text="Logout", command=self.logout)
+        self.logout_button.pack(side=tk.RIGHT, padx=10, pady=10)  
     
+    def logout(self):
+        # Destroy the TeacherInterface window
+        self.root.destroy()
+
+        # Show the login window again
+        self.auth_window.show_login_window()
+
     def setup_add_questions_tab(self):
       # Create two frames to divide the "Add Questions" tab into two sections
       left_frame = tk.Frame(self.add_questions_tab)
@@ -117,13 +136,15 @@ class TeacherInterface:
 
     def setup_quizzes_table(self, parent_frame):
         # Create a Treeview widget for displaying quizzes
-        quiz_tree = ttk.Treeview(parent_frame, columns=("Subject", "Quiz Name", "No. of Questions", "Status"), show="headings")
+        quiz_tree = ttk.Treeview(parent_frame, columns=("Subject", "Quiz Name", "No. of Questions", "Status", "Date", "Time"), show="headings")
 
         # Define column headings
         quiz_tree.heading("Subject", text="Subject")
         quiz_tree.heading("Quiz Name", text="Quiz Name")
         quiz_tree.heading("No. of Questions", text="No. of Questions")
         quiz_tree.heading("Status", text="Status")
+        quiz_tree.heading("Date", text="Date")
+        quiz_tree.heading("Time", text="Time")
 
         # Add a vertical scrollbar
         scroll_y = ttk.Scrollbar(parent_frame, orient=tk.VERTICAL, command=quiz_tree.yview)
@@ -141,7 +162,7 @@ class TeacherInterface:
 
     def populate_quizzes_table(self, quiz_tree):
       # Fetch data from the database where num_questions is not null
-      query = "SELECT subjects.name, quizzes.quiz_name, quizzes.num_questions, quizzes.status " \
+      query = "SELECT subjects.name, quizzes.quiz_name, quizzes.num_questions, quizzes.status, quizzes.date, quizzes.time " \
                   "FROM subjects " \
                   "JOIN quizzes ON subjects.id = quizzes.subject_id " \
                   "WHERE quizzes.num_questions IS NOT NULL"
@@ -507,6 +528,10 @@ class TeacherInterface:
                       self.insert_assigned_quiz(student_id, quiz_id, date, time)
 
                   messagebox.showinfo("Assignment Successful", f"The quiz '{selected_quiz}' has been assigned to the students in '{selected_class}'.")
+                  # Update the Treeview with the new data
+                  quiz_tree = self.add_questions_tab.winfo_children()[1].winfo_children()[0]  # Accessing the Treeview widget
+                  quiz_tree.delete(*quiz_tree.get_children())  # Clear existing data
+                  self.populate_quizzes_table(quiz_tree)  # Populate Treeview with updated data
               else:
                   messagebox.showwarning("Warning", "Please select a quiz to assign.")
           except Exception as e:

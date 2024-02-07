@@ -85,13 +85,13 @@ class AuthWindow:
         if teacher:
             # Successful login for teacher
             messagebox.showinfo("Login Successful", "Welcome, Teacher!")
-
+    
             # Destroy the authentication window
             self.root.destroy()
 
             # Create and run the TeacherInterface window
             root_teacher_interface = tk.Tk()
-            teacher_interface = TeacherInterface(root_teacher_interface, teacher[0])
+            teacher_interface = TeacherInterface(root_teacher_interface, teacher[0], self)
             root_teacher_interface.mainloop()
         else:
             # Check student authentication
@@ -141,4 +141,3 @@ class AuthWindow:
 root = tk.Tk()
 auth_window = AuthWindow(root)
 root.mainloop()
-    

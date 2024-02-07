@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, IntVar
+from tkinter import messagebox as mb, IntVar
 import mysql.connector
 from tkinter import ttk
 from datetime import datetime
@@ -13,104 +13,151 @@ db = mysql.connector.connect(
 )
 cursor = db.cursor()
 
-class QuizWindow:
+class Quiz:
     def __init__(self, root, quiz_id, student_id):
         self.root = root
-        self.root.title("MCQ Quiz App - Quiz")
-
-        # Maximize the window to full screen
-        self.root.state('zoomed')
-
         self.quiz_id = quiz_id
         self.student_id = student_id
 
-        # Create a frame to contain the widgets
-        self.frame = tk.Frame(self.root)
+        # self.root.state('zoomed')
+        print(self.quiz_id)
+        que = "select * from questions where quiz_id=%s"
+        cursor.execute(que, (self.quiz_id,))
+        quiz_que = cursor.fetchall()
+
+        self.q_l = list()
+        self.o_l = list()
+        self.a_l = list()
+        for question in quiz_que:
+            self.q_l.append(question[2])
+            self.o_l.append(list(question[3:7]))
+            self.a_l.append(question[7])
+
+        # Set the question, options, and answer
+        self.question = self.q_l
+        self.options = self.o_l
+        self.answer = self.a_l
+
+        
+        # Create the main frame for the quiz interface
+        self.frame = tk.Frame(self.root, bg="#3498db")
         self.frame.pack(expand=True)
+        
+        # Set up the quiz interface
+        self.setup_quiz()
 
-        # Set the current question index
-        self.current_question_index = 0
+    def setup_quiz(self):
+        self.q_no = 0
+        self.display_title()
 
-        # Load quiz questions and options
-        self.load_quiz_questions()
+        # Create a frame for the question
+        self.question_frame = tk.Frame(self.frame)
+        self.question_frame.pack(pady=20)  # Adjust padding as needed
 
-        # Add navigation buttons
-        self.add_navigation_buttons()
+        self.display_question()
 
-    def load_quiz_questions(self):
-        # Fetch questions and options for the selected quiz
-        query = "SELECT * FROM questions WHERE quiz_id = %s"
-        cursor.execute(query, (self.quiz_id,))
-        self.questions_data = cursor.fetchall()
+        self.opt_selected = IntVar()
+        self.opts = self.radio_buttons()
 
-        # Create labels and radio buttons for the current question
-        self.create_question_widgets()
+        # Create a frame for the buttons
+        self.button_frame = tk.Frame(self.frame)
+        self.button_frame.pack(pady=10)  # Adjust padding as needed
 
-    def create_question_widgets(self):
-        # Destroy existing question widgets
-        for widget in self.frame.winfo_children():
+        self.display_options()
+        self.buttons()
+
+        self.data_size = len(self.question)
+        self.correct = 0
+
+    def display_result(self):
+            # calculates the wrong count
+            wrong_count = self.data_size - self.correct
+            correct = f"Correct: {self.correct}"
+            wrong = f"Wrong: {wrong_count}"
+            score = int(self.correct / self.data_size * 100)
+            result = f"Score: {score}%"
+            # Shows a message box to display the result
+            mb.showinfo("Result", f"{result}\n{correct}\n{wrong}")
+
+    def check_ans(self, q_no):
+            # checks for if the selected option is correct
+            s = self.opt_selected.get()
+            if self.o_l[q_no][s-1] == self.answer[q_no]:
+                # if the option is correct it return true
+                return True
+    
+
+    def next_btn(self):
+            # Check if the answer is correct
+            if self.check_ans(self.q_no):
+                
+                print(self.q_no)
+                # if the answer is correct it increments the correct by 1
+                self.correct += 1
+            
+            # Moves to next Question by incrementing the q_no counter
+            self.q_no += 1
+            print(self.q_no)
+            # checks if the q_no size is equal to the data size
+            if self.q_no==self.data_size:
+                
+                # if it is correct then it displays the score
+                self.display_result()
+                
+                # destroys the GUI
+                self.frame.destroy()
+            else:
+                # shows the next question
+                self.display_question()
+                self.display_options()    
+    
+    def buttons(self):
+        next_button = tk.Button(self.frame, text="Next", command=self.next_btn,
+                                width=10, bg="blue", fg="white", font=("ariel", 16, "bold"))
+        next_button.pack(pady=10)  # Adjust padding as needed
+
+        quit_button = tk.Button(self.frame, text="Quit", command=self.frame.destroy,
+                                width=5, bg="black", fg="white", font=("ariel", 16, "bold"))
+        quit_button.pack(pady=10)
+
+
+    def display_options(self):
+        val = 0
+        # Deselecting the options
+        self.opt_selected.set(0)
+        # Looping over the options to be displayed for the
+        # text of the radio buttons.
+        for option in self.options[self.q_no]:
+            
+            self.opts[val]['text'] = option
+            self.opts[val].pack(anchor="w")  # Adjust anchor as needed
+            val += 1
+   
+    def display_title(self):
+        title = tk.Label(self.frame, text="GeeksforGeeks QUIZ",
+                         width=50, bg="green", fg="white", font=("ariel", 20, "bold"))
+        title.pack(pady=10)  # Adjust padding as needed
+
+    def display_question(self):
+        # Clear the existing question label
+        for widget in self.question_frame.winfo_children():
             widget.destroy()
 
-        # Get the current question
-        current_question = self.questions_data[self.current_question_index]
+        # Display the next question in the question frame
+        q_no = tk.Label(self.question_frame, text=self.question[self.q_no], width=60,
+                        font=('ariel', 16, 'bold'), anchor='w')
+        q_no.pack()  # Adjust padding as needed
 
-        # Create labels and radio buttons for the current question
-        question_label = tk.Label(self.frame, text=current_question[2], font=("Helvetica", 12))
-        question_label.pack(pady=5)
 
-        # Options start from index 3 in the retrieved data
-        options = current_question[3:7]
-
-        # Create IntVar variables to track selected option for each question
-        self.selected_options_vars = [IntVar() for _ in range(len(options))]
-
-        for i, option in enumerate(options):
-            option_radio = tk.Radiobutton(self.frame, text=option, value=i + 1, variable=self.selected_options_vars[i])
-            option_radio.pack()
-
-    def add_navigation_buttons(self):
-        # Create navigation buttons based on the current question index
-        if self.current_question_index < len(self.questions_data) - 1:
-            next_button = tk.Button(self.frame, text="Next", command=self.next_question)
-            next_button.pack(side=tk.LEFT, padx=10)
-        else:
-            submit_button = tk.Button(self.frame, text="Submit", command=self.submit_quiz)
-            submit_button.pack(side=tk.LEFT, padx=10)
-
-        if self.current_question_index > 0:
-            previous_button = tk.Button(self.frame, text="Previous", command=self.previous_question)
-            previous_button.pack(side=tk.LEFT, padx=10)
-
-        clear_button = tk.Button(self.frame, text="Clear", command=self.clear_answer)
-        clear_button.pack(side=tk.LEFT, padx=10)
-
-    def next_question(self):
-        # Move to the next question if available
-        if self.current_question_index < len(self.questions_data) - 1:
-            self.current_question_index += 1
-            self.create_question_widgets()
-            self.add_navigation_buttons()
-
-    def previous_question(self):
-        # Move to the previous question if available
-        if self.current_question_index > 0:
-            self.current_question_index -= 1
-            self.create_question_widgets()
-            self.add_navigation_buttons()
-
-    def clear_answer(self):
-        # Clear the selected option for the current question
-        for var in self.selected_options_vars:
-            var.set(0)
-
-    def submit_quiz(self):
-        # Add your logic here to handle the submitted quiz answers
-        # You can compare selected options with the correct answers from the database
-        # Update the student's score and perform any other necessary actions
-
-        messagebox.showinfo("Quiz Submitted", "Quiz submitted successfully!")
-        self.root.destroy()
-
+    def radio_buttons(self):
+        q_list = []
+        for option in self.options[self.q_no]:
+            radio_btn = tk.Radiobutton(self.frame, text=" ", variable=self.opt_selected,
+                                        value=len(q_list) + 1, font=("ariel", 14))
+            q_list.append(radio_btn)
+            radio_btn.pack(anchor="w")  # Adjust anchor as needed
+        return q_list   
+    
 class StudentInterface:
     def __init__(self, root, student_id):
         self.root = root
@@ -163,11 +210,17 @@ class StudentInterface:
         quiz_cart_tree.bind("<Double-1>", self.start_quiz)
       
     def start_quiz(self, event):
-        # Get the selected quiz_id from the Treeview
         selected_item = event.widget.selection()[0]
-        quiz_id = event.widget.item(selected_item, "values")[0]
+        quiz_name = event.widget.item(selected_item, "values")[0]
 
-        # Open a new window for the selected quiz
-        root_quiz_window = tk.Tk()
-        quiz_window = QuizWindow(root_quiz_window, 10, self.student_id)
-        root_quiz_window.mainloop()
+        # Execute the query to fetch quiz ID
+        query = "SELECT id FROM quizzes WHERE quiz_name = %s"
+        cursor.execute(query, (quiz_name,))
+        quiz_id = cursor.fetchone()[0]  # Fetch single value from the result
+
+        # Open a new window for the selected quiz using Toplevel
+        quiz_window = tk.Toplevel(self.root)
+        quiz_window.title("Quiz")
+        quiz_window.geometry("800x600")  # Adjust the size as needed
+        quiz = Quiz(quiz_window, quiz_id, self.student_id)
+
