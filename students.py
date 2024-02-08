@@ -42,7 +42,7 @@ class Quiz:
         # Create the main frame for the quiz interface
         self.frame = tk.Frame(self.root, bg="#3498db")
         self.frame.pack(expand=True)
-        
+
         # Set up the quiz interface
         self.setup_quiz()
 
@@ -70,14 +70,32 @@ class Quiz:
         self.correct = 0
 
     def display_result(self):
-            # calculates the wrong count
-            wrong_count = self.data_size - self.correct
-            correct = f"Correct: {self.correct}"
-            wrong = f"Wrong: {wrong_count}"
-            score = int(self.correct / self.data_size * 100)
-            result = f"Score: {score}%"
-            # Shows a message box to display the result
-            mb.showinfo("Result", f"{result}\n{correct}\n{wrong}")
+        # Calculate the wrong count
+        wrong_count = self.data_size - self.correct
+        score = int(self.correct / self.data_size * 100)
+
+        # Show result details in a message box
+        mb.showinfo("Result", f"Score: {score}%\nCorrect: {self.correct}\nWrong: {wrong_count}")
+
+        # Store the result in the database
+        self.store_result(score)
+
+        # Remove the assigned quiz from the student's cart
+        self.remove_assigned_quiz()
+    
+    def store_result(self, score):
+        # Insert the result into the results table
+        query = "INSERT INTO results (student_id, quiz_id, score) VALUES (%s, %s, %s)"
+        values = (self.student_id, self.quiz_id, score)
+        cursor.execute(query, values)
+        db.commit()
+
+    def remove_assigned_quiz(self):
+        # Remove the assigned quiz from the assigned_quizzes table
+        query = "DELETE FROM assigned_quizzes WHERE student_id = %s AND quiz_id = %s"
+        values = (self.student_id, self.quiz_id)
+        cursor.execute(query, values)
+        db.commit()
 
     def check_ans(self, q_no):
             # checks for if the selected option is correct
@@ -85,7 +103,6 @@ class Quiz:
             if self.o_l[q_no][s-1] == self.answer[q_no]:
                 # if the option is correct it return true
                 return True
-    
 
     def next_btn(self):
             # Check if the answer is correct
@@ -223,4 +240,9 @@ class StudentInterface:
         quiz_window.title("Quiz")
         quiz_window.geometry("800x600")  # Adjust the size as needed
         quiz = Quiz(quiz_window, quiz_id, self.student_id)
+         
+
+    
+
+        
 
