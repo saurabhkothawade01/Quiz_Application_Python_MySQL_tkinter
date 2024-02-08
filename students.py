@@ -77,11 +77,13 @@ class Quiz:
         # Show result details in a message box
         mb.showinfo("Result", f"Score: {score}%\nCorrect: {self.correct}\nWrong: {wrong_count}")
 
-        # Store the result in the database
-        self.store_result(score)
-
         # Remove the assigned quiz from the student's cart
         self.remove_assigned_quiz()
+
+        # Store the result in the database
+        self.store_result(score)
+        
+
     
     def store_result(self, score):
         # Insert the result into the results table
@@ -97,12 +99,14 @@ class Quiz:
         cursor.execute(query, values)
         db.commit()
 
+
     def check_ans(self, q_no):
             # checks for if the selected option is correct
             s = self.opt_selected.get()
             if self.o_l[q_no][s-1] == self.answer[q_no]:
                 # if the option is correct it return true
                 return True
+    
 
     def next_btn(self):
             # Check if the answer is correct
@@ -240,7 +244,6 @@ class StudentInterface:
         quiz_window.title("Quiz")
         quiz_window.geometry("800x600")  # Adjust the size as needed
         quiz = Quiz(quiz_window, quiz_id, self.student_id)
-         
 
     
 

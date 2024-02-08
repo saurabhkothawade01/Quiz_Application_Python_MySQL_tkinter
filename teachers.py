@@ -332,6 +332,8 @@ class TeacherInterface:
       import_window.mainloop()
 
     def import_questions_from_excel(self, subject, quiz_name, import_window):
+      print(subject)
+      print(quiz_name)
       if subject and quiz_name:
           try:
               # Read Excel file into a Pandas DataFrame
