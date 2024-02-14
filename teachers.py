@@ -165,8 +165,8 @@ class TeacherInterface:
       query = "SELECT subjects.name, quizzes.quiz_name, quizzes.num_questions, quizzes.status, quizzes.date, quizzes.time " \
                   "FROM subjects " \
                   "JOIN quizzes ON subjects.id = quizzes.subject_id " \
-                  "WHERE quizzes.num_questions IS NOT NULL"
-      cursor.execute(query)
+                  "WHERE quizzes.num_questions IS NOT NULL AND quizzes.teacher_id=%s"
+      cursor.execute(query,(self.teacher_id,))
       data = cursor.fetchall()
 
       # Insert data into the Treeview
@@ -212,8 +212,8 @@ class TeacherInterface:
 
     def populate_students_and_class_table(self, students_and_class_tree):
       # Fetch data from the database for class-wise student count
-      query = "SELECT class, COUNT(*) as num_students FROM students GROUP BY class"
-      cursor.execute(query)
+      query = "SELECT class, COUNT(*) as num_students FROM students WHERE teacher_id= %s GROUP BY class, teacher_id"
+      cursor.execute(query, (self.teacher_id,))
       data = cursor.fetchall()
 
       # Insert data into the Treeview
@@ -260,10 +260,12 @@ class TeacherInterface:
                   df = pd.read_excel(file_path)
 
                   # Validate column names
-                  required_columns = ["Id", "username", "password"]
+                  required_columns = ["username", "password"]
                   if set(required_columns).issubset(df.columns):
+                      teacher_id = self.teacher_id
+                      print(teacher_id)
                       # Insert students into the database with class information
-                      students = [(row["Id"], row["username"], row["password"], selected_class) for index, row in df.iterrows()]
+                      students = [(row["username"], row["password"], selected_class, teacher_id) for index, row in df.iterrows()]
                       self.insert_students(students)
 
                       # Update the Treeview with the new data
@@ -286,7 +288,8 @@ class TeacherInterface:
     def insert_students(self, students):
       # Insert students into the students table
       for student in students:
-            query = "INSERT INTO students (id, username, password, class) VALUES (%s, %s, %s, %s)"
+            #query = "INSERT INTO students (id, username, password, class) VALUES (%s, %s, %s, %s)"
+            query = "INSERT INTO students (username, password, class, teacher_id) VALUES (%s, %s, %s, %s)"
             cursor.execute(query, student)
 
       # Commit the changes to the database
@@ -294,8 +297,34 @@ class TeacherInterface:
             
 
     def setup_see_results_tab(self):
-        # Add code for "See Results" tab here
-        pass
+      # Create a Treeview widget for displaying quiz results
+      self.results_tree = ttk.Treeview(self.see_results_tab, columns=("Student Name", "Quiz Name", "Score"), show="headings")
+      self.results_tree.heading("Student Name", text="Student Name")
+      self.results_tree.heading("Quiz Name", text="Quiz Name")
+      self.results_tree.heading("Score", text="Score")
+      self.results_tree.pack(fill=tk.BOTH, expand=True)
+
+      # Button to fetch and display results
+      fetch_results_button = tk.Button(self.see_results_tab, text="Fetch Results", command=self.fetch_results)
+      fetch_results_button.pack()
+
+    def fetch_results(self):
+        # Clear existing data in the Treeview
+        self.results_tree.delete(*self.results_tree.get_children())
+
+        # Fetch quiz results for the logged-in teacher
+        teacher_id = self.teacher_id
+        query = "SELECT students.username, quizzes.quiz_name, results.score FROM results " \
+                "INNER JOIN students ON results.student_id = students.id " \
+                "INNER JOIN quizzes ON results.quiz_id = quizzes.id " \
+                "WHERE quizzes.teacher_id = %s"
+        cursor.execute(query, (teacher_id,))
+        results = cursor.fetchall()
+
+        # Populate the Treeview with quiz results
+        for result in results:
+            self.results_tree.insert("", tk.END, values=result)
+
 
     def setup_manage_profile_tab(self):
         # Add code for "Manage Profile" tab here

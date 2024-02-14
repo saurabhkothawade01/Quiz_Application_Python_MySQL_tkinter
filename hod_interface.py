@@ -226,8 +226,47 @@ class HODInterface:
         root.mainloop()
 
     def setup_results_tab(self):
-        # Add code for "Results" tab here
-        pass
+        # Create a frame to hold the teacher square cards
+        results_frame = tk.Frame(self.results_tab)
+        results_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Fetch all teachers associated with the HOD
+        query = "SELECT teachers.id, teachers.username FROM teachers " \
+                "JOIN hod_subjects ON teachers.id = hod_subjects.teacher_id " \
+                "WHERE hod_subjects.hod_id = %s"
+        cursor.execute(query, (self.hod_id,))
+        teachers_data = cursor.fetchall()
+
+        # Create square cards for each teacher
+        for teacher_data in teachers_data:
+            teacher_id, teacher_username = teacher_data
+            teacher_card = tk.Button(results_frame, text=teacher_username, font=("Helvetica", 14), bg="#3498db", fg="white",
+                                    command=lambda tid=teacher_id: self.show_teacher_results(tid))
+            teacher_card.grid(row=teacher_id // 3, column=teacher_id % 3, padx=10, pady=10, sticky="nsew")
+
+    def show_teacher_results(self, teacher_id):
+        # Create a new window to display the teacher's results
+        teacher_results_window = tk.Toplevel(self.root)
+        teacher_results_window.title("Teacher Results")
+
+        # Fetch the teacher's students' results
+        query = "SELECT students.username, results.score FROM students " \
+                "JOIN results ON students.id = results.student_id " \
+                "WHERE students.teacher_id = %s"
+        print(teacher_id)
+        cursor.execute(query, (teacher_id,))
+        student_results = cursor.fetchall()
+
+        # Create and populate a Treeview widget to display results
+        results_tree = ttk.Treeview(teacher_results_window, columns=("Student Name", "Score"), show="headings")
+        results_tree.heading("Student Name", text="Student Name")
+        results_tree.heading("Score", text="Score")
+
+        for student_result in student_results:
+            results_tree.insert("", tk.END, values=student_result)
+
+        results_tree.pack(fill=tk.BOTH, expand=True)
+
 
     def setup_profile_tab(self):
         # Add code for "Profile" tab here
