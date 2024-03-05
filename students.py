@@ -43,6 +43,16 @@ class Quiz:
         self.frame = tk.Frame(self.root, bg="#3498db")
         self.frame.pack(expand=True)
 
+        # Fetch questions from the database
+        self.fetch_questions()
+
+        # Initialize variables
+        self.q_no = 0
+        self.correct = 0
+        self.time_left = 10  # Timer for each question
+        self.timer_running = False
+
+
         # Set up the quiz interface
         self.setup_quiz()
 
@@ -65,9 +75,33 @@ class Quiz:
 
         self.display_options()
         self.buttons()
+        self.display_timer()
 
         self.data_size = len(self.question)
         self.correct = 0
+
+    def display_timer(self):
+        # Display a label for the timer
+        self.timer_label = tk.Label(self.frame, text=f"Time left: {self.time_left}s",
+                                    font=("Arial", 12))
+        self.timer_label.pack()
+
+        # Start the timer countdown
+        self.start_timer()
+
+    def start_timer(self):
+        if not self.timer_running:
+            self.timer_running = True
+            self.update_timer()
+
+    def update_timer(self):
+        if self.time_left > 0:
+            self.time_left -= 1
+            self.timer_label.config(text=f"Time left: {self.time_left}s")
+            self.timer_label.after(1000, self.update_timer)
+        else:
+            self.timer_running = False
+            self.next_btn()
 
     def display_result(self):
         # Calculate the wrong count
@@ -109,6 +143,7 @@ class Quiz:
     
 
     def next_btn(self):
+            self.timer_running = False
             # Check if the answer is correct
             if self.check_ans(self.q_no):
                 
@@ -130,7 +165,9 @@ class Quiz:
             else:
                 # shows the next question
                 self.display_question()
-                self.display_options()    
+                self.display_options()
+                self.time_left = 10
+                self.start_timer()
     
     def buttons(self):
         next_button = tk.Button(self.frame, text="Next", command=self.next_btn,
@@ -168,6 +205,21 @@ class Quiz:
         q_no = tk.Label(self.question_frame, text=self.question[self.q_no], width=60,
                         font=('ariel', 16, 'bold'), anchor='w')
         q_no.pack()  # Adjust padding as needed
+    
+    def fetch_questions(self):
+        # Fetch questions from the database based on quiz_id
+        query = "SELECT * FROM questions WHERE quiz_id = %s"
+        cursor.execute(query, (self.quiz_id,))
+        quiz_questions = cursor.fetchall()
+
+        self.question = []
+        self.options = []
+        self.answer = []
+
+        for question in quiz_questions:
+            self.question.append(question[2])
+            self.options.append(list(question[3:7]))
+            self.answer.append(question[7])
 
 
     def radio_buttons(self):
@@ -180,7 +232,7 @@ class Quiz:
         return q_list   
     
 class StudentInterface:
-    def __init__(self, root, student_id):
+    def __init__(self, root, student_id, username):
         self.root = root
         self.root.title("MCQ Quiz App - Student Interface")
 
@@ -188,6 +240,7 @@ class StudentInterface:
         self.root.state('zoomed')
 
         self.student_id = student_id
+        self.username = username
 
         # Create a frame to contain the widgets
         self.frame = tk.Frame(self.root)
@@ -215,13 +268,22 @@ class StudentInterface:
         self.populate_quiz_cart(quiz_cart_tree)
 
     def populate_quiz_cart(self, quiz_cart_tree):
+        # Fetch student_id based on the username
+        query_student_id = "SELECT id FROM students WHERE username = %s"
+        cursor.execute(query_student_id, (self.username,))
+        student_id = cursor.fetchone()[0]
+
+        # Clear any unread result
+        cursor.fetchall()
+
         # Fetch quizzes assigned to the student with upcoming dates and times
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         query = "SELECT quizzes.quiz_name, quizzes.date, quizzes.time " \
                 "FROM quizzes " \
                 "JOIN assigned_quizzes ON quizzes.id = assigned_quizzes.quiz_id " \
-                "WHERE assigned_quizzes.student_id = %s AND CONCAT(quizzes.date, ' ', quizzes.time) > %s"
-        cursor.execute(query, (self.student_id, now))
+                "JOIN students ON students.id = assigned_quizzes.student_id " \
+                "WHERE students.username = %s AND CONCAT(quizzes.date, ' ', quizzes.time) > %s"
+        cursor.execute(query, (self.username, now))
         quiz_cart_data = cursor.fetchall()
 
         # Insert data into the Treeview
@@ -229,6 +291,8 @@ class StudentInterface:
             quiz_cart_tree.insert("", tk.END, values=quiz)
         # Bind a function to the double-click event on a quiz row
         quiz_cart_tree.bind("<Double-1>", self.start_quiz)
+
+
       
     def start_quiz(self, event):
         selected_item = event.widget.selection()[0]

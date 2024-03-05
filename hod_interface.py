@@ -205,9 +205,73 @@ class HODInterface:
         cancel_button.grid(row=3, column=1, padx=10, pady=10)
 
     def delete_teacher(self):
-        # Implement the logic for deleting a teacher
-        # You can create a confirmation dialog and proceed with deletion
-        pass
+        # Check if any teacher is selected in the Treeview
+        selected_item = self.teachers_subjects_tree.selection()
+        if not selected_item:
+            messagebox.showwarning("Warning", "Please select a teacher to delete.")
+            return
+
+        # Get the teacher's username and ID from the selected item
+        teacher_username = self.teachers_subjects_tree.item(selected_item, "values")[0]
+        teacher_id = self.get_teacher_id_by_username(teacher_username)
+
+        # Ask for confirmation before deletion
+        confirmation = messagebox.askyesno("Confirmation", f"Are you sure you want to delete teacher '{teacher_username}'?")
+
+        if confirmation:
+            try:
+                # Get quizzes belonging to the teacher
+                query_get_quizzes = "SELECT id FROM quizzes WHERE teacher_id = %s"
+                cursor.execute(query_get_quizzes, (teacher_id,))
+                quizzes = cursor.fetchall()
+
+                # Delete results associated with each quiz
+                for quiz in quizzes:
+                    quiz_id = quiz[0]
+                    query_delete_results = "DELETE FROM results WHERE quiz_id = %s"
+                    cursor.execute(query_delete_results, (quiz_id,))
+                    db.commit()
+
+                # Delete related records from the quizzes table
+                query_delete_quizzes = "DELETE FROM quizzes WHERE teacher_id = %s"
+                cursor.execute(query_delete_quizzes, (teacher_id,))
+                db.commit()
+
+                # Delete related records from the hod_subjects table
+                query_delete_hod_subjects = "DELETE FROM hod_subjects WHERE teacher_id = %s"
+                cursor.execute(query_delete_hod_subjects, (teacher_id,))
+                db.commit()
+
+                # Delete related records from the assigned_quizzes table
+                query_delete_assigned_quizzes = "DELETE FROM assigned_quizzes WHERE teacher_id = %s"
+                cursor.execute(query_delete_assigned_quizzes, (teacher_id,))
+                db.commit()
+
+                # Delete the teacher from the teachers table
+                query_delete_teacher = "DELETE FROM teachers WHERE username = %s AND hod_id = %s"
+                cursor.execute(query_delete_teacher, (teacher_username, self.hod_id))
+                db.commit()
+
+                # Refresh the display
+                self.populate_teachers_and_subjects_display(self.hod_id)
+
+                # Show a success message
+                messagebox.showinfo("Success", f"Teacher '{teacher_username}' deleted successfully.")
+            except mysql.connector.Error as err:
+                messagebox.showerror("Error", f"An error occurred: {err}")
+
+    def get_teacher_id_by_username(self, username):
+        # Get the ID of the teacher based on the username
+        query = "SELECT id FROM teachers WHERE username = %s AND hod_id = %s"
+        cursor.execute(query, (username, self.hod_id))
+        result = cursor.fetchone()
+        if result:
+            return result[0]
+        return None
+
+
+
+
 
     def subject_assign(self):
         # Implement the logic for assigning a subject to a teacher
@@ -226,10 +290,14 @@ class HODInterface:
         root.mainloop()
 
     def setup_results_tab(self):
-        # Create a frame for displaying square cards
+        # Create a frame for displaying teachers list and student marks
         results_frame = tk.Frame(self.results_tab)
         results_frame.pack(fill=tk.BOTH, expand=True)
-        print(self.hod_id)
+
+        # First Section: Display list of teachers
+        teachers_frame = tk.Frame(results_frame, bg="white")
+        teachers_frame.pack(side=tk.LEFT, fill=tk.Y)
+
         # Fetch teachers added by the HOD
         query = "SELECT id, username FROM teachers WHERE hod_id = %s"
         cursor.execute(query, (self.hod_id,))
@@ -238,56 +306,163 @@ class HODInterface:
         if not teachers:
             messagebox.showwarning("Warning", "No teachers added by this HOD.")
 
-        # Create square cards for each teacher
+        # Create a listbox to display teachers
+        teachers_listbox = tk.Listbox(teachers_frame, width=30, height=20)
+        teachers_listbox.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
+
+        # Populate the listbox with teachers
         for teacher in teachers:
             teacher_id, teacher_name = teacher
-            teacher_card = tk.Frame(results_frame, width=100, height=100, bg="white", bd=1, relief=tk.RAISED)
-            teacher_card.grid(row=teacher_id, column=0, padx=10, pady=10)
+            teachers_listbox.insert(tk.END, f"{teacher_id}: {teacher_name}")
 
-            # Add click event handler to show results
-            teacher_card.bind("<Button-1>", lambda event, teacher_id=teacher_id: self.show_results(teacher_id))
+        # Second Section: Display student marks
+        marks_frame = tk.Frame(results_frame)
+        marks_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
-    def show_results(self, teacher_id):
-        # Fetch students' results associated with the selected teacher
-        query = "SELECT students.username, results.score FROM students " \
-                "INNER JOIN results ON students.id = results.student_id " \
-                "WHERE students.teacher_id = %s"
-        cursor.execute(query, (teacher_id,))
-        student_results = cursor.fetchall()
+        def show_teacher_quizzes(event):
+            # Get the selected teacher from the listbox
+            selected_teacher_index = teachers_listbox.curselection()
+            if selected_teacher_index:
+                selected_teacher_id = int(teachers_listbox.get(selected_teacher_index)[0].split(":")[0])
 
-        if not student_results:
-            messagebox.showwarning("Warning", "No results found for this teacher.")
+                # Fetch quizzes created by the selected teacher
+                query = "SELECT id, quiz_name FROM quizzes WHERE teacher_id = %s"
+                cursor.execute(query, (selected_teacher_id,))
+                quizzes = cursor.fetchall()
 
-        # Create a new window to display the results
-        results_window = tk.Toplevel(self.root)
-        results_window.title("Results")
+                if not quizzes:
+                    messagebox.showwarning("Warning", "No quizzes found for this teacher.")
+                    return
 
-        # Create a frame to contain the results
-        results_frame = tk.Frame(results_window)
-        results_frame.pack(fill=tk.BOTH, expand=True)
+                # Create a new window to display the list of quizzes
+                quizzes_window = tk.Toplevel(self.root)
+                quizzes_window.title("Quizzes")
 
-        # Create a Treeview widget to display the results in tabular format
-        results_tree = ttk.Treeview(results_frame, columns=("Student Name", "Score"), show="headings")
-        results_tree.heading("Student Name", text="Student Name")
-        results_tree.heading("Score", text="Score")
+                # Create a listbox to display quizzes
+                quizzes_listbox = tk.Listbox(quizzes_window, width=50, height=20)
+                quizzes_listbox.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
 
-        # Insert the student results into the Treeview
-        for student_result in student_results:
-            results_tree.insert("", tk.END, values=student_result)
+                # Populate the listbox with quizzes
+                for quiz in quizzes:
+                    quiz_id, quiz_name = quiz
+                    quizzes_listbox.insert(tk.END, f"{quiz_id}: {quiz_name}")
 
-        # Add a vertical scrollbar to the Treeview
-        scroll_y = ttk.Scrollbar(results_frame, orient=tk.VERTICAL, command=results_tree.yview)
-        results_tree.configure(yscrollcommand=scroll_y.set)
+                def show_quiz_results(event):
+                    # Get the selected quiz from the listbox
+                    selected_quiz_index = quizzes_listbox.curselection()
+                    if selected_quiz_index:
+                        selected_quiz_id = int(quizzes_listbox.get(selected_quiz_index)[0].split(":")[0])
 
-        # Pack the Treeview and scrollbar
-        results_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+                        # Fetch students' results associated with the selected quiz and teacher
+                        query = "SELECT students.username, results.score FROM students " \
+                                "INNER JOIN results ON students.id = results.student_id " \
+                                "WHERE students.teacher_id = %s AND results.quiz_id = %s"
+                        cursor.execute(query, (selected_teacher_id, selected_quiz_id))
+                        student_results = cursor.fetchall()
+
+                        if not student_results:
+                            messagebox.showwarning("Warning", "No results found for this quiz.")
+                            return
+
+                        # Clear existing data in the Treeview
+                        for child in marks_frame.winfo_children():
+                            child.destroy()
+
+                        # Create a Treeview widget to display the results in tabular format
+                        results_tree = ttk.Treeview(marks_frame, columns=("Student Name", "Score"), show="headings")
+                        results_tree.heading("Student Name", text="Student Name")
+                        results_tree.heading("Score", text="Score")
+
+                        # Insert the student results into the Treeview
+                        for student_result in student_results:
+                            results_tree.insert("", tk.END, values=student_result)
+
+                        # Add a vertical scrollbar to the Treeview
+                        scroll_y = ttk.Scrollbar(marks_frame, orient=tk.VERTICAL, command=results_tree.yview)
+                        results_tree.configure(yscrollcommand=scroll_y.set)
+
+                        # Pack the Treeview and scrollbar
+                        results_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+
+                # Bind click event to show results for selected quiz
+                quizzes_listbox.bind("<<ListboxSelect>>", show_quiz_results)
+
+        # Bind click event to show quizzes for selected teacher
+        teachers_listbox.bind("<<ListboxSelect>>", show_teacher_quizzes)
 
 
 
     def setup_profile_tab(self):
-        # Add code for "Profile" tab here
-        pass
+        # Fetch HOD details from the database
+        query = "SELECT name, mob, email, college, username FROM hods WHERE id = %s"
+        cursor.execute(query, (self.hod_id,))
+        hod_details = cursor.fetchone()
+
+        if hod_details:
+            # Unpack HOD details
+            name, mob, email, college, username = hod_details
+
+            # Create labels and entry widgets for displaying HOD details
+            name_label = tk.Label(self.profile_tab, text="Name:")
+            name_label.grid(row=0, column=0, padx=10, pady=10, sticky=tk.W)
+            self.name_entry = tk.Entry(self.profile_tab)
+            self.name_entry.grid(row=0, column=1, padx=10, pady=10)
+            self.name_entry.insert(0, name)  # Populate name entry with current name
+
+            mob_label = tk.Label(self.profile_tab, text="Mobile:")
+            mob_label.grid(row=1, column=0, padx=10, pady=10, sticky=tk.W)
+            self.mob_entry = tk.Entry(self.profile_tab)
+            self.mob_entry.grid(row=1, column=1, padx=10, pady=10)
+            self.mob_entry.insert(0, mob)  # Populate mob entry with current mob
+
+            email_label = tk.Label(self.profile_tab, text="Email:")
+            email_label.grid(row=2, column=0, padx=10, pady=10, sticky=tk.W)
+            self.email_entry = tk.Entry(self.profile_tab)
+            self.email_entry.grid(row=2, column=1, padx=10, pady=10)
+            self.email_entry.insert(0, email)  # Populate email entry with current email
+
+            college_label = tk.Label(self.profile_tab, text="College:")
+            college_label.grid(row=3, column=0, padx=10, pady=10, sticky=tk.W)
+            self.college_entry = tk.Entry(self.profile_tab)
+            self.college_entry.grid(row=3, column=1, padx=10, pady=10)
+            self.college_entry.insert(0, college)  # Populate college entry with current college
+
+            username_label = tk.Label(self.profile_tab, text="Username:")
+            username_label.grid(row=4, column=0, padx=10, pady=10, sticky=tk.W)
+            self.username_entry = tk.Entry(self.profile_tab)
+            self.username_entry.grid(row=4, column=1, padx=10, pady=10)
+            self.username_entry.insert(0, username)  # Populate username entry with current username
+
+            password_label = tk.Label(self.profile_tab, text="Password:")
+            password_label.grid(row=5, column=0, padx=10, pady=10, sticky=tk.W)
+            self.password_entry = tk.Entry(self.profile_tab)
+            self.password_entry.grid(row=5, column=1, padx=10, pady=10)
+
+            # Button to save changes
+            save_button = tk.Button(self.profile_tab, text="Save Changes", command=self.save_profile_changes, bg="#3498db", fg="white")
+            save_button.grid(row=6, column=0, columnspan=2, padx=10, pady=10)
+        else:
+            messagebox.showwarning("Warning", "No HOD details found.")
+
+    def save_profile_changes(self):
+        # Retrieve updated HOD details from entry widgets
+        new_name = self.name_entry.get()
+        new_mob = self.mob_entry.get()
+        new_email = self.email_entry.get()
+        new_college = self.college_entry.get()
+        new_username = self.username_entry.get()
+        new_password = self.password_entry.get()
+
+        # Update HOD details in the database
+        query = "UPDATE hods SET name = %s, mob = %s, email = %s, college = %s, username = %s, password = %s WHERE id = %s"
+        cursor.execute(query, (new_name, new_mob, new_email, new_college, new_username, new_password, self.hod_id))
+        db.commit()
+
+        # Show success message
+        messagebox.showinfo("Success", "Profile updated successfully!")
+
+
    
 
 # Example usage in your login.py after successful HOD login

@@ -102,13 +102,12 @@ class AuthWindow:
             if student:
                 # Successful login for student
                 messagebox.showinfo("Login Successful", "Welcome, Student!")
-                
                 # Destroy the authentication window
                 self.root.destroy()
 
                 # Create the StudentInterface window
                 root_student_interface = tk.Tk()
-                student_interface = StudentInterface(root_student_interface, student[0])
+                student_interface = StudentInterface(root_student_interface, student[0], student[1])
 
 
                 # Run the StudentInterface window after the AuthWindow is destroyed

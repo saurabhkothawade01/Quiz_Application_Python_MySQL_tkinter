@@ -90,6 +90,10 @@ class TeacherInterface:
       assign_quiz_button = tk.Button(left_frame, text="Assign Quiz", command=self.open_assign_quiz_window, font=("Helvetica", 14), bg="#3498db", fg="white")
       assign_quiz_button.pack(pady=20)
 
+      # New Delete Button
+      delete_button = tk.Button(left_frame, text="Delete", command=self.delete_quiz, font=("Helvetica", 14), bg="#e74c3c", fg="white")
+      delete_button.pack(pady=20)
+
       # Right Section (List of Quizzes)
       self.setup_quizzes_table(right_frame)
 
@@ -125,6 +129,44 @@ class TeacherInterface:
       ok_button.pack(side=tk.LEFT, padx=10)
       cancel_button = tk.Button(assign_window, text="Cancel", command=assign_window.destroy)
       cancel_button.pack(side=tk.RIGHT, padx=10)
+
+
+    def delete_quiz(self):
+      # Get the selected quiz from the Treeview
+      selected_quiz = self.get_selected_quiz()
+
+      if selected_quiz:
+          # Get the subject_id based on the selected quiz
+          subject_id = self.get_subject_id(selected_quiz)
+
+          # Get the quiz_id based on the selected quiz name and subject_id
+          quiz_id = self.get_quiz_id(selected_quiz, subject_id)
+
+          # Confirm deletion
+          confirmation = messagebox.askyesno("Confirmation", f"Are you sure you want to delete the quiz '{selected_quiz}'? This action cannot be undone.")
+          if confirmation:
+              try:
+                  # Delete questions associated with the quiz from the database
+                  query = "DELETE FROM questions WHERE quiz_id = %s"
+                  cursor.execute(query, (quiz_id,))
+                  db.commit()
+
+                  # Delete the quiz from the database
+                  query = "DELETE FROM quizzes WHERE id = %s"
+                  cursor.execute(query, (quiz_id,))
+                  db.commit()
+
+                  # Update the Treeview with the new data
+                  quiz_tree = self.add_questions_tab.winfo_children()[1].winfo_children()[0]  # Accessing the Treeview widget
+                  quiz_tree.delete(*quiz_tree.get_children())  # Clear existing data
+                  self.populate_quizzes_table(quiz_tree)  # Populate Treeview with updated data
+
+                  messagebox.showinfo("Deletion Successful", f"The quiz '{selected_quiz}' has been deleted successfully.")
+              except Exception as e:
+                  messagebox.showerror("Error", f"An error occurred while deleting the quiz: {str(e)}")
+      else:
+          messagebox.showwarning("Warning", "Please select a quiz to delete.")
+
 
 
     def fetch_class_names(self):
@@ -187,8 +229,56 @@ class TeacherInterface:
       import_students_button = tk.Button(left_frame, text="Import Students", command=self.import_students, font=("Helvetica", 14), bg="#2ecc71", fg="white")
       import_students_button.pack(pady=20)
 
+      # New Button: Delete Students
+      delete_students_button = tk.Button(left_frame, text="Delete", command=self.delete_students, font=("Helvetica", 14), bg="#e74c3c", fg="white")
+      delete_students_button.pack(pady=20)
+
       # Right Section (List of Students and Class Info)
       self.setup_students_and_class_table(right_frame)
+    
+
+    def delete_students(self):
+      # Get the selected class from the Treeview
+      selected_class = self.get_selected_class()
+
+      if selected_class:
+          try:
+              # Confirmation dialog before deletion
+              confirmation = messagebox.askyesno("Confirmation", f"Are you sure you want to delete all students in {selected_class}?")
+
+              if confirmation:
+                  # Delete students associated with the selected class from assigned_quizzes table
+                  query = "DELETE FROM assigned_quizzes WHERE student_id IN (SELECT id FROM students WHERE class = %s AND teacher_id = %s)"
+                  cursor.execute(query, (selected_class, self.teacher_id))
+
+                  # Delete students associated with the selected class from students table
+                  query = "DELETE FROM students WHERE class = %s AND teacher_id = %s"
+                  cursor.execute(query, (selected_class, self.teacher_id))
+
+                  # Commit the changes to the database
+                  db.commit()
+
+                  # Update the Treeview with the new data
+                  students_and_class_tree = self.add_students_tab.winfo_children()[1].winfo_children()[0]
+                  students_and_class_tree.delete(*students_and_class_tree.get_children())  # Clear existing data
+                  self.populate_students_and_class_table(students_and_class_tree)  # Populate Treeview with updated data
+
+                  messagebox.showinfo("Deletion Successful", f"All students in {selected_class} have been deleted.")
+          except Exception as e:
+              messagebox.showerror("Error", f"An error occurred: {str(e)}")
+      else:
+          messagebox.showwarning("Warning", "Please select a class to delete students.")
+
+
+    def get_selected_class(self):
+        # Get the selected item from the students and class Treeview
+        students_and_class_tree = self.add_students_tab.winfo_children()[1].winfo_children()[0]
+        selected_item = students_and_class_tree.selection()
+
+        if selected_item:
+            return students_and_class_tree.item(selected_item)['values'][0]  # Class name is at index 0
+        else:
+            return None
 
 
     def setup_students_and_class_table(self, parent_frame):
@@ -551,6 +641,12 @@ class TeacherInterface:
                   # Get the quiz_id based on the selected quiz name and subject_id
                   quiz_id = self.get_quiz_id(selected_quiz, subject_id)
 
+                  # Check if the quiz status is "Given"
+                  quiz_status = self.get_quiz_status(quiz_id)
+                  if quiz_status == "Given":
+                    messagebox.showwarning("Warning", f"The quiz '{selected_quiz}' has already been assigned and cannot be reassigned.")
+                    return
+
                   # Get the student_ids for the selected class
                   student_ids = self.get_student_ids_by_class(selected_class)
 
@@ -574,6 +670,16 @@ class TeacherInterface:
           messagebox.showwarning("Warning", "Please select a class, enter date and time to assign the quiz.")
 
 
+    def get_quiz_status(self, quiz_id):
+      # Fetch the status of the quiz from the database
+      query = "SELECT status FROM quizzes WHERE id = %s"
+      cursor.execute(query, (quiz_id,))
+      status = cursor.fetchone()
+      if status:
+          return status[0]
+      else:
+          return None
+    
     def get_student_ids_by_class(self, selected_class):
       # Check if there's an open result set and consume it
       if cursor.with_rows:
