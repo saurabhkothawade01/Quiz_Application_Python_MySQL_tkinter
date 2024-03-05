@@ -176,8 +176,8 @@ class HODInterface:
             subject_id = cursor.fetchone()[0]
 
             # Insert the new teacher into the database
-            query_insert_teacher = "INSERT INTO teachers (username, password) VALUES (%s, %s)"
-            cursor.execute(query_insert_teacher, (new_username, new_password))
+            query_insert_teacher = "INSERT INTO teachers (username, password, hod_id) VALUES (%s, %s, %s)"
+            cursor.execute(query_insert_teacher, (new_username, new_password, self.hod_id))
             db.commit()
 
             # Get the ID of the newly inserted teacher
@@ -226,46 +226,63 @@ class HODInterface:
         root.mainloop()
 
     def setup_results_tab(self):
-        # Create a frame to hold the teacher square cards
+        # Create a frame for displaying square cards
         results_frame = tk.Frame(self.results_tab)
         results_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Fetch all teachers associated with the HOD
-        query = "SELECT teachers.id, teachers.username FROM teachers " \
-                "JOIN hod_subjects ON teachers.id = hod_subjects.teacher_id " \
-                "WHERE hod_subjects.hod_id = %s"
+        print(self.hod_id)
+        # Fetch teachers added by the HOD
+        query = "SELECT id, username FROM teachers WHERE hod_id = %s"
         cursor.execute(query, (self.hod_id,))
-        teachers_data = cursor.fetchall()
+        teachers = cursor.fetchall()
+
+        if not teachers:
+            messagebox.showwarning("Warning", "No teachers added by this HOD.")
 
         # Create square cards for each teacher
-        for teacher_data in teachers_data:
-            teacher_id, teacher_username = teacher_data
-            teacher_card = tk.Button(results_frame, text=teacher_username, font=("Helvetica", 14), bg="#3498db", fg="white",
-                                    command=lambda tid=teacher_id: self.show_teacher_results(tid))
-            teacher_card.grid(row=teacher_id // 3, column=teacher_id % 3, padx=10, pady=10, sticky="nsew")
+        for teacher in teachers:
+            teacher_id, teacher_name = teacher
+            teacher_card = tk.Frame(results_frame, width=100, height=100, bg="white", bd=1, relief=tk.RAISED)
+            teacher_card.grid(row=teacher_id, column=0, padx=10, pady=10)
 
-    def show_teacher_results(self, teacher_id):
-        # Create a new window to display the teacher's results
-        teacher_results_window = tk.Toplevel(self.root)
-        teacher_results_window.title("Teacher Results")
+            # Add click event handler to show results
+            teacher_card.bind("<Button-1>", lambda event, teacher_id=teacher_id: self.show_results(teacher_id))
 
-        # Fetch the teacher's students' results
+    def show_results(self, teacher_id):
+        # Fetch students' results associated with the selected teacher
         query = "SELECT students.username, results.score FROM students " \
-                "JOIN results ON students.id = results.student_id " \
+                "INNER JOIN results ON students.id = results.student_id " \
                 "WHERE students.teacher_id = %s"
-        print(teacher_id)
         cursor.execute(query, (teacher_id,))
         student_results = cursor.fetchall()
 
-        # Create and populate a Treeview widget to display results
-        results_tree = ttk.Treeview(teacher_results_window, columns=("Student Name", "Score"), show="headings")
+        if not student_results:
+            messagebox.showwarning("Warning", "No results found for this teacher.")
+
+        # Create a new window to display the results
+        results_window = tk.Toplevel(self.root)
+        results_window.title("Results")
+
+        # Create a frame to contain the results
+        results_frame = tk.Frame(results_window)
+        results_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Create a Treeview widget to display the results in tabular format
+        results_tree = ttk.Treeview(results_frame, columns=("Student Name", "Score"), show="headings")
         results_tree.heading("Student Name", text="Student Name")
         results_tree.heading("Score", text="Score")
 
+        # Insert the student results into the Treeview
         for student_result in student_results:
             results_tree.insert("", tk.END, values=student_result)
 
-        results_tree.pack(fill=tk.BOTH, expand=True)
+        # Add a vertical scrollbar to the Treeview
+        scroll_y = ttk.Scrollbar(results_frame, orient=tk.VERTICAL, command=results_tree.yview)
+        results_tree.configure(yscrollcommand=scroll_y.set)
+
+        # Pack the Treeview and scrollbar
+        results_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
+
 
 
     def setup_profile_tab(self):

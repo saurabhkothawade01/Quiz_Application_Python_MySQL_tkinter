@@ -129,8 +129,8 @@ class TeacherInterface:
 
     def fetch_class_names(self):
       # Fetch class names from the database
-      query = "SELECT DISTINCT class FROM students"
-      cursor.execute(query)
+      query = "SELECT DISTINCT class FROM students where teacher_id=%s"
+      cursor.execute(query,(self.teacher_id,))
       class_names = [row[0] for row in cursor.fetchall()]
       return class_names
 
@@ -556,7 +556,7 @@ class TeacherInterface:
 
                   # Assign the quiz to each student in the selected class
                   for student_id in student_ids:
-                      self.insert_assigned_quiz(student_id, quiz_id, date, time)
+                      self.insert_assigned_quiz(student_id, quiz_id, self.teacher_id, date, time)
 
                   messagebox.showinfo("Assignment Successful", f"The quiz '{selected_quiz}' has been assigned to the students in '{selected_class}'.")
                   # Update the Treeview with the new data
@@ -586,10 +586,10 @@ class TeacherInterface:
 
       return student_ids
 
-    def insert_assigned_quiz(self, student_id, quiz_id, date, time):
+    def insert_assigned_quiz(self, student_id, quiz_id, teacher_id, date, time):
       # Insert the assigned quiz into the assigned_quizzes table
-      query = "INSERT INTO assigned_quizzes (student_id, quiz_id) VALUES (%s, %s)"
-      cursor.execute(query, (student_id, quiz_id))
+      query = "INSERT INTO assigned_quizzes (student_id, quiz_id, teacher_id) VALUES (%s, %s, %s)"
+      cursor.execute(query, (student_id, quiz_id, teacher_id))
 
       query = "UPDATE quizzes SET status = %s, date = %s, time = %s WHERE id = %s"
       cursor.execute(query, ("Given", date, time, quiz_id))
