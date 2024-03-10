@@ -1,0 +1,105 @@
+CREATE DATABASE mcq_quiz_app;
+USE mcq_quiz_app;
+
+-- Create tables
+CREATE TABLE teachers (
+      id INT PRIMARY KEY AUTO_INCREMENT,
+      username VARCHAR(255) UNIQUE,
+	password VARCHAR(255)
+);
+
+CREATE TABLE students (
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	username VARCHAR(255),
+	password VARCHAR(255),
+	class VARCHAR(255)
+);
+
+CREATE TABLE subjects (
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	name VARCHAR(255) UNIQUE
+);
+
+CREATE TABLE quizzes (
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	teacher_id INT,
+	subject_id INT,
+	quiz_name VARCHAR(255),
+	num_questions INT,
+	status VARCHAR(50) DEFAULT 'Not Given',
+	date DATE,
+	time TIME,
+	FOREIGN KEY (teacher_id) REFERENCES teachers(id),
+	FOREIGN KEY (subject_id) REFERENCES subjects(id)
+);
+
+CREATE TABLE questions (
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	quiz_id INT,
+	question_text TEXT,
+	option1 VARCHAR(255),
+	option2 VARCHAR(255),
+	option3 VARCHAR(255),
+	option4 VARCHAR(255),
+	correct_option VARCHAR(255),
+	FOREIGN KEY (quiz_id) REFERENCES quizzes(id)
+);
+	
+CREATE TABLE results (
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	student_id INT,
+	quiz_id INT,
+	score INT,
+	FOREIGN KEY (student_id) REFERENCES students(id),
+	FOREIGN KEY (quiz_id) REFERENCES quizzes(id)
+);
+
+CREATE TABLE assigned_quizzes (
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	student_id INT,
+	quiz_id INT,
+	FOREIGN KEY (student_id) REFERENCES students(id),
+	FOREIGN KEY (quiz_id) REFERENCES quizzes(id)
+);
+
+CREATE TABLE hods (
+	id INT AUTO_INCREMENT PRIMARY KEY,
+	name VARCHAR(255) NOT NULL,
+	mob VARCHAR(15) NOT NULL,
+	email VARCHAR(255) NOT NULL,
+	college VARCHAR(255) NOT NULL,
+	username VARCHAR(50) UNIQUE NOT NULL,
+	password VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE hod_subjects (
+	id INT PRIMARY KEY AUTO_INCREMENT,
+	hod_id INT,
+	teacher_id INT,
+	subject_id INT,
+	UNIQUE KEY (hod_id, teacher_id),
+	UNIQUE KEY (hod_id, subject_id),
+	FOREIGN KEY (hod_id) REFERENCES hods(id),
+	FOREIGN KEY (teacher_id) REFERENCES teachers(id),
+	FOREIGN KEY (subject_id) REFERENCES subjects(id)
+);
+
+-- Add constraints
+-- ALTER TABLE teachers ADD CONSTRAINT uc_username UNIQUE (username);
+ALTER TABLE subjects ADD CONSTRAINT uc_subject_name UNIQUE (name);
+    
+ALTER TABLE teachers ADD COLUMN hod_id INT;
+ALTER TABLE teachers ADD FOREIGN KEY (hod_id) REFERENCES hods(id);
+
+-- Add constraint to enforce uniqueness of teacher under different HODs
+ALTER TABLE hod_subjects ADD CONSTRAINT uc_hod_teacher UNIQUE (hod_id, teacher_id);
+
+ALTER TABLE students ADD COLUMN teacher_id INT;
+
+ALTER TABLE assigned_quizzes ADD COLUMN teacher_id INT;
+
+-- Then add a foreign key constraint
+ALTER TABLE assigned_quizzes ADD CONSTRAINT fk_teacher_id 
+FOREIGN KEY (teacher_id) REFERENCES teachers(id);
+
+

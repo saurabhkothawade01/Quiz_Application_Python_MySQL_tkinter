@@ -18,6 +18,7 @@ class Quiz:
         self.root = root
         self.quiz_id = quiz_id
         self.student_id = student_id
+        
 
         # self.root.state('zoomed')
         print(self.quiz_id)
@@ -192,8 +193,8 @@ class Quiz:
             val += 1
    
     def display_title(self):
-        title = tk.Label(self.frame, text="GeeksforGeeks QUIZ",
-                         width=50, bg="green", fg="white", font=("ariel", 20, "bold"))
+        title = tk.Label(self.frame, text="QUIZ",
+                         width=50, bg="black", fg="white", font=("ariel", 20, "bold"))
         title.pack(pady=10)  # Adjust padding as needed
 
     def display_question(self):
@@ -291,8 +292,6 @@ class StudentInterface:
             quiz_cart_tree.insert("", tk.END, values=quiz)
         # Bind a function to the double-click event on a quiz row
         quiz_cart_tree.bind("<Double-1>", self.start_quiz)
-
-
       
     def start_quiz(self, event):
         selected_item = event.widget.selection()[0]
