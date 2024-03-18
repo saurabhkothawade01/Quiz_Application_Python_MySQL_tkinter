@@ -215,8 +215,6 @@ class TeacherInterface:
       for quiz in data:
             quiz_tree.insert("", tk.END, values=quiz)
 
-
-
     def setup_add_students_tab(self):
       # Create two frames to divide the "Add Students" tab into two sections
       left_frame = tk.Frame(self.add_students_tab)
@@ -563,7 +561,6 @@ class TeacherInterface:
       cursor.execute(query, (selected_quiz,))
       quiz_details = cursor.fetchall()
 
-
       # Create a new window to display quiz details
       details_window = tk.Toplevel(self.root)
       details_window.title(f"Quiz Details - {selected_quiz}")
@@ -589,34 +586,6 @@ class TeacherInterface:
       quiz_details_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
       scroll_y.pack(side=tk.RIGHT, fill=tk.Y)
     
-    def assign_quiz(self):
-      # Get the selected quiz from the Treeview
-      selected_quiz = self.get_selected_quiz()
-
-      if selected_quiz:
-            # Create a new window for selecting the class to assign the quiz
-            assign_window = tk.Toplevel(self.root)
-            assign_window.title("Assign Quiz")
-
-            # Label and dropdown for selecting class
-            class_label = tk.Label(assign_window, text="Select Class:")
-            class_label.pack(pady=10)
-
-            class_var = tk.StringVar()
-            classes = ["Class A", "Class B", "Class C"]  # Replace with your actual class names
-            class_dropdown = ttk.Combobox(assign_window, textvariable=class_var, values=classes)
-            class_dropdown.pack(pady=10)
-
-            # Add "OK" and "Cancel" buttons
-            ok_button = tk.Button(assign_window, text="OK", command=lambda: self.assign_quiz_to_class(selected_quiz, class_var.get(), assign_window))
-            ok_button.pack(side=tk.LEFT, padx=10)
-            cancel_button = tk.Button(assign_window, text="Cancel", command=assign_window.destroy)
-            cancel_button.pack(side=tk.RIGHT, padx=10)
-
-            # Call the mainloop to display the window
-            assign_window.mainloop()
-      else:
-            messagebox.showwarning("Warning", "Please select a quiz to assign.")
 
     def get_selected_quiz(self):
       # Get the selected item from the quizzes Treeview
@@ -633,13 +602,16 @@ class TeacherInterface:
           try:
               # Get the selected quiz from the Treeview
               selected_quiz = self.get_selected_quiz()
+              print("selected_quiz = ",selected_quiz)
 
               if selected_quiz:
                   # Get the subject_id based on the selected quiz
                   subject_id = self.get_subject_id(selected_quiz)
+                  print("subject_id = ", subject_id)
 
                   # Get the quiz_id based on the selected quiz name and subject_id
                   quiz_id = self.get_quiz_id(selected_quiz, subject_id)
+                  print("quiz_id = ",quiz_id)
 
                   # Check if the quiz status is "Given"
                   quiz_status = self.get_quiz_status(quiz_id)
@@ -649,6 +621,7 @@ class TeacherInterface:
 
                   # Get the student_ids for the selected class
                   student_ids = self.get_student_ids_by_class(selected_class)
+                  print("student_ids = ", student_ids)
 
                   # Assign the quiz to each student in the selected class
                   for student_id in student_ids:
@@ -686,8 +659,8 @@ class TeacherInterface:
             cursor.fetchall()
 
       # Fetch student_ids for the selected class from the database
-      query = "SELECT id FROM students WHERE class = %s"
-      cursor.execute(query, (selected_class,))
+      query = "SELECT id FROM students WHERE class = %s AND teacher_id = %s"
+      cursor.execute(query, (selected_class, self.teacher_id))
       student_ids = [row[0] for row in cursor.fetchall()]
 
       return student_ids

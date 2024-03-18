@@ -303,9 +303,6 @@ class HODInterface:
         cursor.execute(query, (self.hod_id,))
         teachers = cursor.fetchall()
 
-        if not teachers:
-            messagebox.showwarning("Warning", "No teachers added by this HOD.")
-
         # Create a listbox to display teachers
         teachers_listbox = tk.Listbox(teachers_frame, width=30, height=20)
         teachers_listbox.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
